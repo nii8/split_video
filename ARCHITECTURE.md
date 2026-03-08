@@ -79,11 +79,13 @@ graph TB
     S3 -->|健康检查 | S1
     S3 -->|健康检查 | S2
     S2 <-->|读写 | S4
-    S1 <-->|HTTP | W1
+    S2 <-->|HTTP | W1
     W1 <-->|读写 | W3
     W2 -->|轮询 | W3
+    W2 -->|直接修改 | W3
     W2 -->|FFmpeg| D2
     W2 -->|上传 | O1
+    W2 -->|同步 SRT| M1
     S2 -->|AI 调用 | A1
     S2 -->|AI 调用 | A2
     S1 -->|静态文件 | D3
@@ -107,7 +109,7 @@ graph LR
         W4[视频资源<br/>MP4/SRT]
     end
     
-    M1 -->|1.make_video 请求 | W1
+    M2 -->|1.make_video 请求 | W1
     M2 -->|2.轮询 get_task| W1
     W2 -->|3.轮询任务 | W3
     W2 -->|4.上传 SRT| M1
@@ -128,6 +130,39 @@ graph LR
 | FFmpeg 视频剪辑 | ❌ | ✅ |
 | OSS 上传 | ❌ | ✅ |
 | 进程监控 | ✅ | ❌ |
+| SRT 同步 | 接收端 | 发送端 (提取帧时) |
+
+### 2.3 关键数据流向说明
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  重要澄清：视频生成请求的发起者                                         │
+├─────────────────────────────────────────────────────────────────────────┤
+│  ❌ 错误理解：server.py → video_server.py                               │
+│  ✅ 正确理解：sse_server.py → video_server.py                           │
+│                                                                         │
+│  原因：sse_server.py 中的 sse_generate_video() 函数直接 HTTP 调用       │
+│  执行机的 /make_video 端点，并持续轮询 /get_task 获取进度               │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│  重要澄清：任务状态更新方式                                             │
+├─────────────────────────────────────────────────────────────────────────┤
+│  ❌ 错误理解：run_video.py 调用 video_server.py API 更新状态            │
+│  ✅ 正确理解：run_video.py 直接修改 user_task.json 文件                 │
+│                                                                         │
+│  原因：run_video.py 的 update_task_status() 函数直接读写 JSON 文件，    │
+│  使用 fcntl 文件锁保证并发安全，不调用 video_server.py 的任何 API        │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│  重要澄清：SRT 文件同步时机                                             │
+├─────────────────────────────────────────────────────────────────────────┤
+│  执行机在 get_video_imgs() 提取视频帧时，调用 send_srt() 将 SRT 上传   │
+│  到主服务器的 /upload_video_srt 端点，确保主服务器有最新的 SRT 文件    │
+│  用于后续 AI 文案匹配                                                   │
+└─────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -174,9 +209,10 @@ sequenceDiagram
     Note over RunV,VideoS: 阶段 5: 视频处理 (执行机异步)
     RunV->>RunV: 轮询 user_task.json
     RunV->>RunV: 发现 pending 任务
+    RunV->>Server: 同步 SRT 文件 (提取帧时)
     RunV->>RunV: FFmpeg 剪辑视频
     RunV->>RunV: 上传 OSS
-    RunV->>VideoS: 更新任务状态=completed
+    RunV->>RunV: 直接更新 user_task.json
     
     Note over User,SSE: 阶段 6: 进度轮询
     User->>SSE: SSE 持续连接
@@ -242,6 +278,8 @@ graph TD
         W2[get_first_pending_task]
         W3[cut_video_main]
         W4[upload_video]
+        W5[get_video_imgs]
+        W6[send_srt]
     end
     
     subgraph Video["视频处理 make_video.step3"]
@@ -260,13 +298,16 @@ graph TD
     W1 --> W2
     W2 --> Q1
     W2 --> W3
+    W2 --> W5
+    W5 --> W6
+    W6 --> M1[server.py<br/>上传 SRT]
     W3 --> V1
     V1 --> V2
     V2 --> V3
     V3 --> V4
     W3 --> W4
     W4 --> OSS[OSS 上传]
-    W4 --> Q1
+    W4 -.直接修改.-> Q1
 ```
 
 ---
