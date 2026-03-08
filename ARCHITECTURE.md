@@ -234,20 +234,20 @@ graph TD
     end
     
     subgraph SSE_Layer
-        S1[sse-chat]
-        S2[sse-chat-v2]
-        S3[api/generate_time_sequence]
-        S4[sse-generate-video]
+        S1[sse_chat]
+        S2[sse_chat_v2]
+        S3[generate_time_sequence]
+        S4[sse_generate_video]
     end
     
     subgraph AI_Module
-        M1[make_time.step2]
-        M2[make_time.mode2]
-        M3[make_time.chat]
+        M1[make_time_step2]
+        M2[make_time_mode2]
+        M3[make_time_chat]
     end
     
     subgraph State_Mgr
-        ST1[socket_status.json]
+        ST1[socket_status_json]
     end
     
     A2 --> S1
@@ -274,7 +274,7 @@ graph TD
     end
     
     subgraph Worker
-        W1[轮询循环]
+        W1[poll_loop]
         W2[get_first_pending_task]
         W3[cut_video_main]
         W4[upload_video]
@@ -286,16 +286,16 @@ graph TD
         V1[extract_audio]
         V2[cut_and_merge_audio]
         V3[cut_and_merge_video_img]
-        V4[ffmpeg 合成]
+        V4[ffmpeg_merge]
     end
     
     subgraph Queue
-        Q1[user_task.json]
+        Q1[user_task_json]
     end
     
     subgraph External
-        Server1[server.py]
-        OSS1[OSS 对象存储]
+        Server1[server_py]
+        OSS1[OSS_storage]
     end
     
     T1 --> Q1
