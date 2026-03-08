@@ -120,36 +120,78 @@ make_video/
 
 ### 3.1 完整业务流程图
 
+**架构说明**:
+- **主服务器**: server.py (API 网关) + sse_server x16 (AI 处理) + manager.py + up_status.py
+- **执行机**: video_server.py + run_video.py (可部署多台，当前配置 2 台：113.249.107.180 和 113.249.107.182)
+- **共享存储**: `./data/config/socket_status.json` (主服务器上，后端状态追踪)
+- **独立存储**: 每个执行机独立的 `user_task.json` (视频任务队列)
+
 ```mermaid
 flowchart TD
-    A[用户访问前端] --> B[server.py:5000<br/>主服务器]
-    B --> C{请求类型}
+    subgraph Client["客户端 (前端)"]
+        A[用户访问]
+    end
 
-    C -->|SRT 上传 | D[upload_srt]
-    C -->|AI 聊天 | E[获取后端 URL]
+    subgraph MainServer["主服务器"]
+        B[server.py:5000/80<br/>API 网关]
+        C{请求类型}
+        E[获取后端 URL]
+
+        subgraph SSE["sse_server x16 (5001-5016)"]
+            J1{SSE 端点}
+            K[AI 文案生成]
+            L[脚本优化]
+            M[字幕匹配 AI]
+            N[视频生成请求]
+        end
+
+        F{后端状态}
+        G1[分配用户专属 backend]
+        G2[分配空闲 backend]
+        G3[分配最久完成的 backend]
+
+        D[upload_srt]
+        D1[保存 SRT 到 static/download/srt]
+    end
+
+    subgraph Worker["执行机 (可多台)"]
+        N1[video_server.py:8868<br/>任务管理]
+        N2[user_task.json<br/>任务队列]
+        O[run_video.py<br/>轮询处理]
+    end
+
+    subgraph External["外部服务"]
+        K1[DeepSeek API]
+        S[OSS 存储]
+    end
+
+    A --> B
+    B --> C
+
+    C -->|SRT 上传 | D
+    C -->|AI 聊天 | E
     C -->|时间序列 | E
     C -->|视频生成 | E
 
-    D --> D1[保存 SRT 到 static/download/srt]
+    D --> D1
     D1 --> D2[返回下载 URL]
 
-    E --> F{后端状态}
-    F -->|用户专属 done| G1[分配用户专属 backend]
-    F -->|空闲 free| G2[分配空闲 backend]
-    F -->|完成 done>3min| G3[分配最久完成的 backend]
+    E --> F
+    F -->|用户专属 done| G1
+    F -->|空闲 free| G2
+    F -->|完成 done>3min| G3
     F -->|全 busy| H[等待或排队]
 
-    G1 --> J[sse_server.py:5001+<br/>主服务器]
-    G2 --> J
-    G3 --> J
+    G1 --> J1
+    G2 --> J1
+    G3 --> J1
 
-    J --> J1{SSE 端点}
-    J1 -->|sse-chat| K[AI 文案生成]
-    J1 -->|sse-chat-v2| L[脚本优化]
-    J1 -->|api/generate_time_sequence| M[字幕匹配 AI]
-    J1 -->|sse-generate-video| N[视频生成请求]
+    J1 -->|sse-chat| K
+    J1 -->|sse-chat-v2| L
+    J1 -->|api/generate_time_sequence| M
+    J1 -->|sse-generate-video| N
 
-    K --> K1[DeepSeek API]
+    K --> K1
     K1 --> K2[SSE 流式返回前端]
 
     L --> L1[DeepSeek API]
@@ -159,34 +201,26 @@ flowchart TD
     M1 --> M2[AI 匹配文案到字幕]
     M2 --> M3[返回 keep_intervals]
 
-    N --> N1[POST video_server:8868<br/>执行机 1 或执行机 2]
-    N1 --> N2[user_task.json]
-    N2 --> N3[SSE 轮询进度]
+    N -->|POST /make_video| N1
+    N1 -->|写入 status=pending| N2
 
-    O[run_video.py 轮询<br/>执行机] --> O1[读取 user_task.json]
-    O1 --> O2{status=pending?}
-    O2 -->|是 | O3[执行视频剪辑]
-    O2 -->|否 | O1
+    O -->|轮询 user_task.json| N2
+    O --> O1{status=pending?}
+    O1 -->|是 | O2[执行视频剪辑]
+    O1 -->|否 | O
 
-    O3 --> P[extract_audio WAV]
+    O2 --> P[extract_audio WAV]
     P --> Q[cut_and_merge_video_img<br/>帧级别切割]
     Q --> R[合并音视频]
-    R --> S[ossutil 上传 OSS]
-    S --> T[更新 status=completed + oss_path]
+    R --> T1[update status=uploading]
+    T1 --> U[upload_video OSS]
+    U --> V[update status=completed + oss_path]
 
+    N --> N3[SSE 轮询进度]
+    N3 -->|GET /get_task| N1
     N3 --> V{status=completed?}
-    V -->|是 | W[返回 OSS URL]
+    V -->|是 | W[返回 video_url]
     V -->|否 | N3
-```
-
-**架构说明**:
-- **主服务器**: server.py (API 网关) + sse_server x16 (AI 处理) + manager.py + up_status.py
-- **执行机**: video_server.py + run_video.py (可部署多台，当前配置 2 台)
-- **后端分配逻辑** (server.py `/api/get_backend_url`):
-  1. 优先分配用户专属 backend (done 状态)
-  2. 其次分配空闲 backend (free 状态)
-  3. 再次分配完成超过 3 分钟的 backend (done 状态)
-  4. 最后分配最久完成的 busy backend
 ```
 
 ### 3.2 状态流转图
@@ -239,129 +273,184 @@ update_task_status(user_id, video_id, "processing")  # 开始处理
 
 ```mermaid
 graph TD
-    subgraph Web 层 - 主服务器
-        server[server.py:5000/80]
-        sse[sse_server.py:5001-5016<br/>16 个后端实例]
-        manager[manager.py<br/>进程监控]
-        up_status[up_status.py<br/>状态清理]
+    subgraph MainServer["主服务器 (Main Server)"]
+        subgraph Web["Web 层"]
+            server[server.py:5000/80<br/>API 网关]
+            sse[sse_server.py:5001-5016<br/>16 个 SSE 后端实例]
+        end
+
+        subgraph Monitor["监控层"]
+            manager[manager.py<br/>进程健康监控]
+            up_status[up_status.py<br/>状态清理]
+        end
+
+        subgraph SharedData["共享数据"]
+            socket_status[./data/config/<br/>socket_status.json]
+        end
     end
 
-    subgraph 执行机 - 视频处理服务器
-        video[video_server.py:8868<br/>任务管理]
-        run_video[run_video.py<br/>工作线程]
+    subgraph Worker["执行机 (Worker Machine) - 可多台"]
+        video[video_server.py:8868<br/>视频任务管理]
+        run_video[run_video.py<br/>视频处理工作线程]
+        user_task[user_task.json<br/>任务队列]
     end
 
-    subgraph 工具模块
-        config[config.py]
-        mylog[mylog.py]
+    subgraph Tools["工具模块"]
+        config[config.py<br/>配置管理]
+        mylog[mylog.py<br/>日志设置]
     end
 
-    subgraph make_time - AI 字幕匹配
-        step2[step2.py<br/>入口函数]
+    subgraph MakeTime["make_time - AI 字幕匹配"]
+        step2[step2.py<br/>入口 get_keep_intervals]
         mode2[mode2.py<br/>文案解析/AI 匹配]
         util[util.py<br/>提示词/JSON 解析]
-        chat[chat.py<br/>DeepSeek/Bailian]
+        chat[chat.py<br/>DeepSeek/Bailian 客户端]
     end
 
-    subgraph make_video - FFmpeg 处理
+    subgraph MakeVideo["make_video - FFmpeg 处理"]
         step3[step3.py<br/>切割/合并]
     end
 
-    %% 主服务器依赖
+    subgraph External["外部服务"]
+        deepseek[DeepSeek API]
+        oss[OSS 存储]
+    end
+
+    %% Web 层内部依赖
     server --> config
     server --> mylog
-    server --> sse
 
-    %% SSE 后端依赖
     sse --> config
     sse --> mylog
-    sse --> step2
-    sse --> video
 
-    %% 执行机依赖
+    %% 监控依赖
+    manager -.->|HTTP 检查 | server
+    manager -.->|HTTP 检查 | sse
+    up_status -.->|更新 | socket_status
+
+    %% socket_status 使用
+    server -.->|读写 | socket_status
+    sse -.->|更新状态 | socket_status
+
+    %% 主服务器→执行机
+    sse -->|POST /make_video| video
+    video -->|写入 | user_task
+
+    %% 执行机内部依赖
+    run_video -.->|轮询 | user_task
     video --> config
-    video --> step3
 
     run_video --> config
     run_video --> step3
 
-    %% make_time 内部依赖
+    %% make_time 依赖 (sse_server 使用)
+    sse --> step2
     step2 --> mode2
     step2 --> util
     mode2 --> util
     mode2 --> chat
     util --> chat
+    chat --> deepseek
 
     %% make_video 依赖
     step3 --> config
+    run_video --> oss
 
-    %% 监控依赖
-    manager --> server
-    manager --> sse
-
-    up_status --> sse
+    %% server 路由
+    server -.->|/api/get_backend_url| sse
 ```
 
 **部署架构说明**:
 | 组件 | 部署位置 | 说明 |
 |------|----------|------|
-| server.py | 主服务器 | API 网关、文件上传下载 |
+| server.py | 主服务器 | API 网关、文件上传下载、后端路由 |
 | sse_server.py | 主服务器 | 16 个后端实例 (端口 5001-5016) |
-| manager.py | 主服务器 | 进程健康监控 |
-| up_status.py | 主服务器 | 清理超时后端状态 |
+| manager.py | 主服务器 | 进程健康监控 (HTTP 检查 + 自动重启) |
+| up_status.py | 主服务器 | 清理超时后端状态 (socket_status.json) |
 | video_server.py | 执行机 (可多台) | 视频任务管理 (端口 8868) |
-| run_video.py | 执行机 (可多台) | 视频处理工作线程 |
+| run_video.py | 执行机 (可多台) | 视频处理工作线程 (轮询 user_task.json) |
+
+**数据流说明**:
+1. **主服务器内部**: `socket_status.json` 由 server.py 读取分配后端，由 sse_server.py 更新状态，由 up_status.py 清理超时
+2. **主服务器→执行机**: sse_server.py 通过 HTTP POST 调用执行机的 `/make_video` 端点
+3. **执行机内部**: video_server.py 写入 `user_task.json`，run_video.py 轮询并处理任务
 ```
 
 ### 4.2 API 调用时序图
 
 ```mermaid
 sequenceDiagram
+    autonumber
     participant Client as 前端客户端
-    participant Gateway as server.py:5000<br/>(主服务器)
-    participant Backend as sse_server:5001<br/>(主服务器)
-    participant VideoSrv as video_server:8868<br/>(执行机)
-    participant Worker as run_video.py<br/>(执行机)
+    participant Gateway as server.py:5000<br/>(主服务器 - API 网关)
+    participant Backend as sse_server:5001<br/>(主服务器 - SSE 后端)
+    participant VideoSrv as video_server:8868<br/>(执行机 - 任务管理)
+    participant Worker as run_video.py<br/>(执行机 - 工作线程)
     participant DeepSeek as DeepSeek API
     participant OSS as OSS 存储
 
-    Client->>Gateway: POST /api/get_backend_url
-    Gateway-->>Client: backend_url=http://:5001
-    Gateway->>Gateway: 分配后端 (专属→空闲→最久完成)
-
-    Client->>Backend: GET /sse-chat?prompt=xxx
-    Backend->>DeepSeek: Chat Completion API
-    DeepSeek-->>Backend: Stream Response
-    Backend-->>Client: SSE Events
-
-    Client->>Backend: POST /api/generate_time_sequence
-    Backend->>Backend: 解析 SRT
-    Backend->>DeepSeek: AI 匹配请求 (JSON 格式)
-    DeepSeek-->>Backend: JSON id_list
-    Backend-->>Client: keep_intervals
-
-    Client->>Backend: GET /sse-generate-video
-    Backend->>VideoSrv: POST /make_video (执行机 1/2)
-    VideoSrv-->>Backend: task_id
-    VideoSrv->>VideoSrv: 写入 user_task.json
-    Backend-->>Client: SSE progress:0%
-
-    loop 轮询 (30s 间隔)
-        Worker->>Worker: 读取 user_task.json
-        Worker->>Worker: status=pending?
-        Worker->>Worker: cut_video_main
-        Worker->>Worker: ffmpeg 切割
-        Worker->>OSS: ossutil 上传
-        Worker->>VideoSrv: 更新 status=completed
-        Backend->>VideoSrv: GET /get_task
-        VideoSrv-->>Backend: status=processing/uploading
-        Backend-->>Client: SSE progress:N%
+    rect rgb(200, 220, 255)
+        note right of Client: 阶段 1: 获取后端 URL
+        Client->>Gateway: POST /api/get_backend_url
+        Gateway->>Gateway: 查询 socket_status.json
+        Gateway->>Gateway: 分配后端 (专属→空闲→最久完成)
+        Gateway-->>Client: backend_url=http://:5001
     end
 
-    Worker->>VideoSrv: status=completed + oss_path
+    rect rgb(220, 255, 220)
+        note right of Client: 阶段 2: AI 聊天 (可选)
+        Client->>Backend: GET /sse-chat?prompt=xxx
+        Backend->>DeepSeek: Chat Completion API
+        DeepSeek-->>Backend: Stream Response
+        Backend-->>Client: SSE Events (流式)
+    end
+
+    rect rgb(255, 220, 220)
+        note right of Client: 阶段 3: 时间序列生成
+        Client->>Backend: POST /api/generate_time_sequence
+        Backend->>Backend: 解析 SRT 文件
+        Backend->>DeepSeek: AI 匹配请求 (JSON 格式)
+        DeepSeek-->>Backend: JSON id_list
+        Backend-->>Client: keep_intervals
+    end
+
+    rect rgb(255, 255, 200)
+        note right of Client: 阶段 4: 视频生成
+        Client->>Backend: GET /sse-generate-video
+        Backend->>Backend: 更新 socket_status<br/>busy4_generate_video
+
+        loop 遍历执行机 (servers 数组)
+            Backend->>VideoSrv: POST /make_video
+            VideoSrv->>VideoSrv: 写入 user_task.json<br/>(status=pending)
+            VideoSrv-->>Backend: task_id
+            Backend-->>Client: SSE progress:0%
+        end
+
+        loop SSE 轮询进度 (30s 间隔)
+            Backend->>VideoSrv: GET /get_task
+            VideoSrv-->>Backend: status + data
+            Backend-->>Client: SSE progress:N%
+        end
+    end
+
+    rect rgb(220, 255, 255)
+        note right of Worker: 执行机工作线程 (独立运行)
+        Worker->>Worker: 轮询 user_task.json
+        Worker->>Worker: 发现 status=pending
+        Worker->>Worker: update status=processing
+        Worker->>Worker: cut_video_main()
+        Worker->>Worker: extract_audio(WAV)
+        Worker->>Worker: cut_and_merge_video_img()
+        Worker->>Worker: 合并音视频
+        Worker->>Worker: update status=uploading
+        Worker->>OSS: ossutil 上传
+        Worker->>VideoSrv: update status=completed + oss_path
+    end
+
     Backend->>VideoSrv: GET /get_task
-    VideoSrv-->>Backend: oss_path
+    VideoSrv-->>Backend: status=completed + oss_path
     Backend-->>Client: SSE video_url + complete
+    Backend->>Backend: 更新 socket_status<br/>done4_generate_video
 ```
 
 **执行机说明**:
@@ -369,6 +458,7 @@ sequenceDiagram
 - `sse_generate_video()` 会遍历执行机列表，选择第一个成功响应的服务器
 - 每个执行机运行独立的 `video_server.py` 和 `run_video.py`
 - 任务队列 `user_task.json` 在每个执行机上独立维护
+- **注意**: run_video.py 是独立进程，通过轮询 `user_task.json` 发现新任务
 ```
 
 ---
@@ -376,6 +466,8 @@ sequenceDiagram
 ## 5. 关键路径说明
 
 ### 5.1 路径 1: AI 文案生成 (sse-chat)
+
+**部署位置**: 主服务器
 
 ```
 前端 → server.py (获取后端) → sse_server.py → DeepSeek API → SSE 返回
@@ -399,6 +491,8 @@ sequenceDiagram
 7. 完成后更新状态为 `done1_sse_chat__1/2/3`
 
 ### 5.2 路径 2: 时间序列生成 (字幕匹配)
+
+**部署位置**: 主服务器
 
 ```
 前端提交文案 → sse_server.py → 解析 SRT → AI 匹配 → 返回 keep_intervals
@@ -426,41 +520,49 @@ sequenceDiagram
 
 ### 5.3 路径 3: 视频生成
 
+**部署位置**: 主服务器 (sse_server) → 执行机 (video_server + run_video)
+
 ```
-前端 → sse_server → video_server (创建任务) → run_video 轮询 → FFmpeg → OSS
+前端 → sse_server (主服务器) → video_server (执行机) → run_video (执行机) → FFmpeg → OSS
 ```
 
 **关键代码：**
 - `sse_server.py:355-575` - sse_generate_video() SSE 流
 - `sse_server.py:328-352` - execute_on_server() 执行机选择
 - `video_server.py:64-167` - make_video() 创建任务
-- `run_video.py:208-225` - 主循环轮询
-- `run_video.py:218-224` - cut_video_main + upload_video
+- `run_video.py:63-83` - get_first_pending_task() 轮询
+- `run_video.py:208-225` - 主循环
+- `run_video.py:113-153` - update_task_status() 状态更新
 - `make_video/step3.py:355-361` - cut_video_main()
 - `make_video/step3.py:167-218` - cut_and_merge_video_img() 无损切割
 
-**任务状态变更：**
+**任务状态变更 (user_task.json)：**
 `pending` → `processing` → `uploading` → `completed`
 
-**后端状态变更：**
+**后端状态变更 (socket_status.json)：**
 `free` → `busy4_generate_video` → `done4_...` (15 分钟超时)
 
 **详细流程：**
-1. 前端 GET `/sse-generate-video` 发起请求
-2. sse_server 更新状态为 `busy4_generate_video`
-3. 遍历执行机列表 (`servers` 数组)
-4. POST `/make_video` 到 video_server:8868
-5. video_server 写入 `user_task.json` (status=pending)
-6. run_video 轮询发现 pending 任务
-7. 更新状态为 `processing`
-8. 执行 `cut_video_main()`:
-   - `extract_audio()` 提取 WAV 音频
-   - `cut_and_merge_video_img()` 帧级别切割视频
-   - 合并音视频为 MP4
-9. 更新状态为 `uploading`
-10. `upload_video()` 使用 ossutil 上传
-11. 更新状态为 `completed` + oss_path
-12. sse_server 轮询到完成状态，返回 video_url
+
+| 步骤 | 执行位置 | 操作 |
+|------|----------|------|
+| 1 | 主服务器 | 前端 GET `/sse-generate-video` 发起请求 |
+| 2 | 主服务器 | sse_server 更新 `socket_status.json` 为 `busy4_generate_video` |
+| 3 | 主服务器 | 遍历执行机列表 (`servers` 数组) |
+| 4 | 主服务器→执行机 | POST `/make_video` 到 video_server:8868 |
+| 5 | 执行机 | video_server 写入 `user_task.json` (status=pending) |
+| 6 | 主服务器→前端 | SSE progress:0% |
+| 7 | 执行机 | run_video 轮询 `user_task.json` 发现 pending 任务 |
+| 8 | 执行机 | 更新状态为 `processing` |
+| 9 | 执行机 | 执行 `cut_video_main()`: extract_audio(WAV) |
+| 10 | 执行机 | 执行 `cut_and_merge_video_img()` 帧级别切割 |
+| 11 | 执行机 | 合并音视频为 MP4 |
+| 12 | 执行机 | 更新状态为 `uploading` |
+| 13 | 执行机 | `upload_video()` 使用 ossutil 上传 |
+| 14 | 执行机 | 更新状态为 `completed` + oss_path |
+| 15 | 主服务器 | 轮询 GET `/get_task` 查询进度 |
+| 16 | 主服务器→前端 | SSE video_url + complete |
+| 17 | 主服务器 | 更新 `socket_status.json` 为 `done4_...` |
 
 **SSE 进度轮询：**
 ```
