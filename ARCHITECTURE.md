@@ -241,16 +241,16 @@ graph TD
     end
     
     subgraph AI["AI 处理模块"]
-        M1[make_time.step2<br/>get_keep_intervals]
-        M2[make_time.mode2<br/>文案匹配]
-        M3[make_time.chat<br/>AI 调用]
+        M1[make_time.step2 - get_keep_intervals]
+        M2[make_time.mode2 - 文案匹配]
+        M3[make_time.chat - AI 调用]
     end
     
     subgraph State["状态管理"]
-        ST1[socket_status.json<br/>后端状态]
+        ST1[socket_status.json]
     end
     
-    A2 --> SSE
+    A2 --> S1
     S1 --> M1
     S2 --> M1
     S3 --> M1
@@ -290,7 +290,12 @@ graph TD
     end
     
     subgraph Queue["任务队列"]
-        Q1[user_task.json<br/>pending→processing→completed]
+        Q1[user_task.json]
+    end
+    
+    subgraph External["外部服务"]
+        Server1[server.py - 接收 SRT]
+        OSS1[OSS 对象存储]
     end
     
     T1 --> Q1
@@ -300,14 +305,14 @@ graph TD
     W2 --> W3
     W2 --> W5
     W5 --> W6
-    W6 --> M1[server.py<br/>上传 SRT]
+    W6 --> Server1
     W3 --> V1
     V1 --> V2
     V2 --> V3
     V3 --> V4
     W3 --> W4
-    W4 --> OSS[OSS 上传]
-    W4 -.直接修改.-> Q1
+    W4 --> OSS1
+    W4 -.-> Q1
 ```
 
 ---
