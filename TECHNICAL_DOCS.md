@@ -183,28 +183,40 @@ flowchart TD
 stateDiagram-v2
     [*] --> pending: 创建任务
     pending --> processing: run_video 拾取
-    processing --> uploading: 视频剪辑完成
+    processing --> uploading: 视频剪辑完成 (cut_video_main)
     uploading --> completed: OSS 上传成功
     completed --> [*]
 
     note right of pending
         等待工作线程处理
+        user_task.json 中 status=pending
     end note
 
     note right of processing
         FFmpeg 切割中
-        - 音频提取
-        - 帧提取
-        - 音视频合并
+        1. extract_audio (提取 WAV)
+        2. cut_and_merge_video_img (帧级别切割)
+        3. 合并音视频
     end note
 
     note right of uploading
-        上传到 OSS 存储
+        ossutil 上传到 OSS
+        upload_video() 执行
     end note
 
     note right of completed
-        返回视频 URL 给前端
+        oss_path 已写入
+        前端可下载视频 URL
     end note
+```
+
+**状态更新流程 (run_video.py 主循环)**:
+```
+update_task_status(user_id, video_id, "processing")  # 开始处理
+  → cut_video_main()                                  # 执行 FFmpeg
+  → update_task_status(user_id, video_id, "uploading") # 开始上传
+  → upload_video()                                    # ossutil 上传
+  → update_task_status(user_id, video_id, "completed", oss_path) # 完成
 ```
 
 ---
