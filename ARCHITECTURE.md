@@ -226,27 +226,27 @@ sequenceDiagram
 
 ```mermaid
 graph TD
-    subgraph API["API 层 server.py"]
-        A1[/upload_srt]
-        A2[/get_backend_url]
-        A3[/get_content]
-        A4[/upload_video_srt]
+    subgraph API_Layer
+        A1[upload_srt]
+        A2[get_backend_url]
+        A3[get_content]
+        A4[upload_video_srt]
     end
     
-    subgraph SSE["SSE 层 sse_server.py"]
-        S1[/sse-chat]
-        S2[/sse-chat-v2]
-        S3[/api/generate_time_sequence]
-        S4[/sse-generate-video]
+    subgraph SSE_Layer
+        S1[sse-chat]
+        S2[sse-chat-v2]
+        S3[api/generate_time_sequence]
+        S4[sse-generate-video]
     end
     
-    subgraph AI["AI 处理模块"]
-        M1[make_time.step2 - get_keep_intervals]
-        M2[make_time.mode2 - 文案匹配]
-        M3[make_time.chat - AI 调用]
+    subgraph AI_Module
+        M1[make_time.step2]
+        M2[make_time.mode2]
+        M3[make_time.chat]
     end
     
-    subgraph State["状态管理"]
+    subgraph State_Mgr
         ST1[socket_status.json]
     end
     
@@ -267,13 +267,13 @@ graph TD
 
 ```mermaid
 graph TD
-    subgraph TaskAPI["任务 API video_server.py"]
-        T1[/make_video]
-        T2[/get_task]
-        T3[/tasks]
+    subgraph TaskAPI
+        T1[make_video]
+        T2[get_task]
+        T3[tasks]
     end
     
-    subgraph Worker["工作进程 run_video.py"]
+    subgraph Worker
         W1[轮询循环]
         W2[get_first_pending_task]
         W3[cut_video_main]
@@ -282,19 +282,19 @@ graph TD
         W6[send_srt]
     end
     
-    subgraph Video["视频处理 make_video.step3"]
+    subgraph VideoProc
         V1[extract_audio]
         V2[cut_and_merge_audio]
         V3[cut_and_merge_video_img]
         V4[ffmpeg 合成]
     end
     
-    subgraph Queue["任务队列"]
+    subgraph Queue
         Q1[user_task.json]
     end
     
-    subgraph External["外部服务"]
-        Server1[server.py - 接收 SRT]
+    subgraph External
+        Server1[server.py]
         OSS1[OSS 对象存储]
     end
     
