@@ -226,30 +226,30 @@ sequenceDiagram
 
 ```mermaid
 graph TD
-    subgraph API_Layer
+    subgraph API_Layer["API 层"]
         A1[upload_srt]
         A2[get_backend_url]
         A3[get_content]
         A4[upload_video_srt]
     end
-    
-    subgraph SSE_Layer
+
+    subgraph SSE_Layer["SSE 层"]
         S1[sse_chat]
         S2[sse_chat_v2]
         S3[generate_time_sequence]
         S4[sse_generate_video]
     end
-    
-    subgraph AI_Module
+
+    subgraph AI_Module["AI 模块"]
         M1[make_time_step2]
         M2[make_time_mode2]
         M3[make_time_chat]
     end
-    
-    subgraph State_Mgr
+
+    subgraph State_Mgr["状态管理"]
         ST1[socket_status_json]
     end
-    
+
     A2 --> S1
     S1 --> M1
     S2 --> M1
@@ -267,13 +267,13 @@ graph TD
 
 ```mermaid
 graph TD
-    subgraph TaskAPI
+    subgraph TaskAPI["任务 API"]
         T1[make_video]
         T2[get_task]
         T3[tasks]
     end
-    
-    subgraph Worker
+
+    subgraph Worker["工作线程"]
         W1[poll_loop]
         W2[get_first_pending_task]
         W3[cut_video_main]
@@ -281,23 +281,23 @@ graph TD
         W5[get_video_imgs]
         W6[send_srt]
     end
-    
-    subgraph VideoProc
+
+    subgraph VideoProc["视频处理"]
         V1[extract_audio]
         V2[cut_and_merge_audio]
         V3[cut_and_merge_video_img]
         V4[ffmpeg_merge]
     end
-    
-    subgraph Queue
+
+    subgraph Queue["任务队列"]
         Q1[user_task_json]
     end
-    
-    subgraph External
+
+    subgraph External["外部服务"]
         Server1[server_py]
         OSS1[OSS_storage]
     end
-    
+
     T1 --> Q1
     T2 --> Q1
     W1 --> W2
