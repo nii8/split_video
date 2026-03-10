@@ -1,4 +1,3 @@
-import yaml
 import json
 import sys
 import time
@@ -6,16 +5,14 @@ import os
 import transformers
 try: import fcntl
 except ImportError: fcntl = None
+import settings
 
-limit_prompt = 8192
-data_dir = './data/hanbing'
-upload_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0N"
-server_ip = '113.249.103.24'
 _data_cache = {}
+
 
 def find_srt_files():
     found_files = []
-    for root, dirs, files in os.walk(data_dir):
+    for root, dirs, files in os.walk(settings.DATA_DIR):
         for file in files:
             if '.srt' in file:
                 srt_path = os.path.join(root, file)
@@ -71,41 +68,12 @@ def is_windows():
     return sys.platform.startswith('win')
 
 
-def get_yaml_data():
-    with open('./data/config/config.yaml', 'r', encoding='utf-8') as f:
-        config = yaml.safe_load(f)
-        return config
-
-
-def get_json_data():
-    with open('./data/config/socket_status.json', 'r', encoding='utf-8') as f:
-        if not is_windows():
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-        try:
-            config = json.load(f)
-        except json.JSONDecodeError:
-            print(f'get_json_data JSONDecodeError')
-            config = {}
-        if not is_windows():
-            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-        return config
-
-
-def get_cfg_data():
-    with open('./data/config/config.json', 'r', encoding='utf-8') as f:
-        config = json.load(f)
-        return config
-
-
 def get_token_len(prompt, tokenizer_dir="./token"):
     try:
         t1 = time.time()
-        # 加载分词器
         tokenizer = transformers.AutoTokenizer.from_pretrained(
             tokenizer_dir, trust_remote_code=True
         )
-
-        # 编码文本并计算token长度
         tokens = tokenizer.encode(prompt)
         token_length = len(tokens)
         t2 = time.time()
@@ -120,24 +88,20 @@ def get_token_len(prompt, tokenizer_dir="./token"):
 def parse_time_to_seconds(time_str):
     # 参数:time_str (str): 时间字符串，格式为"HH:MM:SS,mmm"
     try:
-        # 分割小时、分钟、秒和毫秒
         main_part, milliseconds = time_str.split(',')
         hours, minutes, seconds = map(int, main_part.split(':'))
         milliseconds = int(milliseconds)
-
-        # 计算总秒数
         total_seconds = hours * 3600 + minutes * 60 + seconds + milliseconds / 1000.0
         return total_seconds
     except ValueError:
         raise ValueError("时间格式不正确，应为'HH:MM:SS,mmm'格式")
 
 
-def split_srt_content(srt_content, max_tokens=limit_prompt - 1000):
+def split_srt_content(srt_content, max_tokens=settings.LIMIT_PROMPT - 1000):
     """将SRT内容分割成多个部分，每个部分不超过max_tokens"""
     t1 = time.time()
     tokenizer = transformers.AutoTokenizer.from_pretrained("./token", trust_remote_code=True)
 
-    # 按段落分割（假设SRT内容已经按空行分隔段落）
     paragraphs = srt_content.split('\n\n')
     parts = []
     current_part = []
@@ -166,10 +130,3 @@ def split_srt_content(srt_content, max_tokens=limit_prompt - 1000):
     t2 = time.time()
     print(f'split_srt length: {len(parts)}, cost time: {round(t2 - t1, 2)} seconds')
     return parts, split_time
-
-
-class Config:
-    config_data = get_yaml_data()
-    DEEPSEEK_API_KEY = config_data.get('DEEPSEEK_API_KEY')
-    BAILIAN_API_KEY = config_data.get('BAILIAN_API_KEY')
-
