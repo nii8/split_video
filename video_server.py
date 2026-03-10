@@ -4,6 +4,7 @@ try: import fcntl
 except ImportError: fcntl = None
 from datetime import datetime
 from flask import Flask, request, jsonify
+import settings
 from config import is_windows, get_video_file_path
 
 

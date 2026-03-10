@@ -44,9 +44,7 @@ def update_socket_status(backend_key, status_str, user_id):
     """
     file_path = './data/config/socket_status.json'
     try:
-        # 读取并更新JSON文件
-        with open(file_path, 'r+', encoding='utf-8') as f:
-            # 获取文件锁（仅限非Windows系统）
+        with open(file_path, 'r', encoding='utf-8') as f:
             if not is_windows():
                 try:
                     fcntl.flock(f.fileno(), fcntl.LOCK_EX)
@@ -54,33 +52,28 @@ def update_socket_status(backend_key, status_str, user_id):
                     print(f"获取文件锁失败: {e}")
                     return False
 
-
-            # 加载JSON数据
             try:
                 status_dict = json.load(f)
             except json.JSONDecodeError:
                 print(f'update_socket_status JSONDecodeError')
                 status_dict = {}
 
-            # 检查backend_key是否存在
             if backend_key not in status_dict:
                 print(f"错误: backend_key '{backend_key}' 不存在于文件中")
                 if not is_windows():
                     fcntl.flock(f.fileno(), fcntl.LOCK_UN)
                 return False
 
-            # 更新状态和时间
             status_dict[backend_key]['status'] = status_str
             status_dict[backend_key]['cur_time'] = time.time()
             status_dict[backend_key]['user_id'] = user_id
-
-            # 可选：添加格式化的时间字符串，便于阅读
             status_dict[backend_key]['update_time'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-            # 将文件指针移到开头，清空文件，写入新数据
-            f.seek(0)
-            f.truncate()
-            json.dump(status_dict, f, ensure_ascii=False, indent=2)
+            # 原子写入：先写临时文件，再替换，防止崩溃导致 JSON 损坏
+            tmp_path = file_path + '.tmp'
+            with open(tmp_path, 'w', encoding='utf-8') as tmp:
+                json.dump(status_dict, tmp, ensure_ascii=False, indent=2)
+            os.replace(tmp_path, file_path)
             if not is_windows():
                 fcntl.flock(f.fileno(), fcntl.LOCK_UN)
             return True

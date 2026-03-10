@@ -7,8 +7,8 @@ try: import fcntl
 except ImportError: fcntl = None
 from datetime import datetime
 from make_video.step3 import cut_video_main
-from config import (is_windows, get_token_len, limit_prompt, split_srt_content, find_srt_files,
-                    get_video_file_path, upload_token, server_ip)
+import settings
+from config import is_windows, get_token_len, split_srt_content, find_srt_files, get_video_file_path
 
 data_unit_name = 'hanbing'
 img_dir = './data/imgs/hanbing'
@@ -16,11 +16,11 @@ debug_mode = False
 
 def send_srt(srt_path, srt_content):
     try:
-        response = requests.post(f"http://{server_ip}:80/upload_video_srt",
+        response = requests.post(f"http://{settings.SERVER_IP}:80/upload_video_srt",
             json={
                 "srt_path": srt_path,
                 "srt_content": srt_content,
-                "token": upload_token
+                "token": settings.UPLOAD_TOKEN
             }, timeout=6
         )
         print('send 200')
@@ -40,20 +40,15 @@ def get_video_imgs(video_id, mp4_path, srt_path):
         if debug_mode:
             send_srt(srt_path, srt_content)
         full_tokens = get_token_len(srt_content)
-        if full_tokens is not None and full_tokens + 300 <= limit_prompt:
+        if full_tokens is not None and full_tokens + 300 <= settings.LIMIT_PROMPT:
             get_img_cmd = f'ffmpeg -i {mp4_path} -vf fps=fps=30 {video_img_dir}/frame_%06d.png'
         else:
-            # 需要分割SRT内容
             srt_parts, split_time = split_srt_content(srt_content)
             split_count = int(split_time * 30)
             get_img_cmd = f'ffmpeg -i {mp4_path} -frames:v {split_count} -vf fps=fps=30 {video_img_dir}/frame_%06d.png'
 
-    # 'ffmpeg -i input.mp4 -vf "fps=30" -frames:v 10000 output_%06d.png'
-    # 'ffmpeg -i input.mp4 -vf "fps=30,select='between(n,0,10000)'" -vsync vfr output_%06d.png'
-    # ffmpeg -i ./hanbing/2026/01/001/C1872/C1872.mp4 -frames:v 10000 -vf fps=fps=30 ./imgs/hanbing/C1872/frame_%06d.png
     print(f'get_img_cmd={get_img_cmd}')
     t1 = time.time()
-    # os.system(get_img_cmd)
     if srt_content:
         send_srt(srt_path, srt_content)
     t2 = time.time()
@@ -94,7 +89,6 @@ def get_new_video(file_path='video_list.json'):
         updated = False
 
         srt_list = find_srt_files()
-        # print(f'srt_list = {srt_list}')
         for srt_path, mp4_path, name, video_id in srt_list:
             if video_id not in videos:
                 print(f'srt_list2 = {srt_list}')
@@ -103,7 +97,6 @@ def get_new_video(file_path='video_list.json'):
                 updated = True
                 break
 
-        # 如果找到了任务才写回文件
         if updated:
             with open(file_path, 'w', encoding='utf-8') as f:
                 json.dump(videos, f, ensure_ascii=False, indent=2)
@@ -113,8 +106,7 @@ def get_new_video(file_path='video_list.json'):
 def update_task_status(user_id, video_id, new_status, oss_path=None, file_path='user_task.json'):
     """根据user_id和video_id更新任务的status状态"""
     try:
-        # 读取JSON文件
-        with open(file_path, 'r+', encoding='utf-8') as f:
+        with open(file_path, 'r', encoding='utf-8') as f:
             if not is_windows():
                 try:
                     fcntl.flock(f.fileno(), fcntl.LOCK_EX)
@@ -129,7 +121,6 @@ def update_task_status(user_id, video_id, new_status, oss_path=None, file_path='
 
             updated = False
 
-            # 查找并更新匹配的任务
             for task in tasks:
                 if task.get('user_id') == user_id and task.get('video_id') == video_id:
                     task['status'] = new_status
@@ -138,12 +129,12 @@ def update_task_status(user_id, video_id, new_status, oss_path=None, file_path='
                     updated = True
                     break
 
-            # 如果找到了任务才写回文件
+            # 原子写入：先写临时文件，再替换，防止崩溃导致 JSON 损坏
             if updated:
-                f.seek(0)
-                f.truncate()
-                json.dump(tasks, f, ensure_ascii=False, indent=2)
-            # 重要：显式释放锁
+                tmp_path = file_path + '.tmp'
+                with open(tmp_path, 'w', encoding='utf-8') as tmp:
+                    json.dump(tasks, tmp, ensure_ascii=False, indent=2)
+                os.replace(tmp_path, file_path)
             if not is_windows():
                 fcntl.flock(f.fileno(), fcntl.LOCK_UN)
             return updated
@@ -155,23 +146,19 @@ def update_task_status(user_id, video_id, new_status, oss_path=None, file_path='
 
 def find_mp4_files(video_path):
     dir_path = os.path.dirname(os.path.abspath(video_path))
-
-    # 遍历目录，筛选出所有.mp4文件（忽略大小写）
     mp4_files = []
     for file in os.listdir(dir_path):
         if file.lower().endswith('.mp4'):
             mp4_files.append(os.path.join(dir_path, file))
-
     return mp4_files
 
 
 def strftime_to_timestamp(formatted_time):
-    # 将格式如 "2023_11_15_14_30_45" 的字符串转换为时间戳
     try:
         dt = datetime.strptime(formatted_time, "%Y_%m_%d_%H_%M_%S")
-        return int(dt.timestamp())  # 返回整数时间戳
+        return int(dt.timestamp())
     except ValueError:
-        return None  # 格式不匹配时返回 None
+        return None
 
 
 def upload_video(video_path, video_id, user_id):
@@ -181,14 +168,12 @@ def upload_video(video_path, video_id, user_id):
     file_list = []
     for mp4_file in mp4_files:
         base_name = os.path.basename(mp4_file)
-        # base_name 7Q3A0006_001_2025_01_14_21_31_33.mp4
         if f'{video_id}_{user_id}_' in base_name:
             timestamp = strftime_to_timestamp(base_name.replace('.mp4', '').replace(f'{video_id}_{user_id}_', ''))
             if timestamp:
                 file_list.append([timestamp, mp4_file, base_name])
     file_list.sort(reverse=True, key=lambda x: x[0])
 
-    # 2. 取最新时间戳对应的 mp4_file（第一个元素）
     if file_list:
         latest_timestamp, latest_mp4_file, mp4_file_name = file_list[0]
         oss_dir = latest_mp4_file.replace(mp4_file_name, '').split(data_unit_name)[1]
@@ -201,8 +186,6 @@ def upload_video(video_path, video_id, user_id):
     else:
         print("未找到要上传的视频文件")
         return None
-
-
 
 
 if __name__ == '__main__':
