@@ -5,17 +5,17 @@ import json
 import time
 try: import fcntl
 except ImportError: fcntl = None
-import transformers
 import requests
 from openai import OpenAI
 from flask import Flask, request, Response, jsonify
 from flask_cors import CORS
 from datetime import datetime
-from config import Config, is_windows, get_token_len, limit_prompt, split_srt_content, get_srt_file_path
+import settings
+from config import is_windows, get_token_len, split_srt_content, get_srt_file_path
 from make_time.step2 import get_keep_intervals
 
 data_dic = {}
-servers = ["113.249.107.180", "113.249.107.182"]
+servers = settings.WORKER_IPS
 port = int(sys.argv[1]) if len(sys.argv) > 1 else 5001
 backend_name = sys.argv[2] if len(sys.argv) > 2 else 'backend1'
 backend_id = sys.argv[3] if len(sys.argv) > 3 else 'c0929290-6d79-40de-af54-e8aae8072060'
@@ -25,7 +25,7 @@ app = Flask(__name__)
 CORS(app)
 
 client = OpenAI(
-    api_key=Config.DEEPSEEK_API_KEY,
+    api_key=settings.DEEPSEEK_API_KEY,
     base_url="https://api.deepseek.com"
 )
 
@@ -112,7 +112,7 @@ def get_srt_prompt(prompt, video_id):
     full_prompt = prompt + '\n\n' + srt_content
     full_tokens = get_token_len(full_prompt)
     
-    if full_tokens is not None and full_tokens <= limit_prompt:
+    if full_tokens is not None and full_tokens <= settings.LIMIT_PROMPT:
         return [full_prompt]
     
     # 需要分割SRT内容
@@ -141,7 +141,7 @@ def llm_generate_stream(prompt):
                 {"role": "system", "content": "You are a senior short video copywriter well-versed in the dissemination patterns of the TikTok platform."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=limit_prompt,
+            max_tokens=settings.LIMIT_PROMPT,
             stream=True  # 关键：启用流式输出
         )
 
