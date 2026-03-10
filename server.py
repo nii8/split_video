@@ -8,8 +8,8 @@ import json
 import time
 import requests
 import mylog
-import config
-from config import is_windows, find_srt_files, server_ip, upload_token
+import settings
+from config import is_windows, find_srt_files
 
 log = mylog.setup_logger('logs/app', 'log.txt')
 app = Flask(__name__)
@@ -19,7 +19,6 @@ HLS_DIR = os.path.join(os.path.dirname(__file__), 'video/hls')
 STATIC_DIR = os.path.join(os.path.dirname(__file__), 'static')
 USER_DIR = os.path.join(os.path.dirname(__file__), 'static/user')
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), 'static/download/srt')
-cfg_data = config.get_cfg_data()
 
 
 @app.route("/upload_srt", methods=["POST"])
@@ -230,7 +229,7 @@ def hls_files(filename):
 # 记录播放行为 report_play_event delete
 # 获取用户上次播放时间戳 get_last_play_timestamp delete
 def get_user_id(token):
-    token_list = cfg_data['token_list']
+    token_list = settings.TOKEN_LIST
     if token in token_list:
         user_index = token_list.index(token)
         user_id = '%03d'%(user_index+1)
@@ -251,7 +250,7 @@ def get_video_id_list():
     # 获取前端发送的数据
     data = request.get_json()
     token = data.get('token')
-    token_list = cfg_data['token_list']
+    token_list = settings.TOKEN_LIST
     if token not in token_list:
         return jsonify({'error': 'Missing token'}), 400
     video_id_list = get_video_list()
@@ -264,7 +263,7 @@ def get_video_id_list():
 @app.route('/upload_video_srt', methods=['POST'])
 def upload_video_srt():
     data = request.get_json()
-    if not data or data.get('token') != upload_token:
+    if not data or data.get('token') != settings.UPLOAD_TOKEN:
         return jsonify({"error": "Invalid token"}), 401
 
     srt_path = data.get('srt_path')
@@ -290,8 +289,8 @@ def get_backend_url():
     prompt = data.get('prompt')
     token = data.get('token')
     user_id = get_user_id(token)
-    token_list = cfg_data['token_list']
-    name_dic = cfg_data['name_dic']
+    token_list = settings.TOKEN_LIST
+    name_dic = settings.NAME_DIC
 
     # 验证必要参数
     if not video_id or not prompt:
@@ -329,7 +328,7 @@ def get_backend_url():
     name_list = []
     if not name:
         for key_num, value in url_cfg.items():
-            if 'done' in value.get('status') and int(time.time() - value.get('cur_time')) > 180:
+            if 'done' in value.get('status') and int(time.time() - value.get('cur_time')) > settings.BACKEND_IDLE_SEC:
                 name = name_dic[key_num]
                 name_list.append([int(time.time() - value.get('cur_time')), name])
     if name_list:
@@ -344,7 +343,7 @@ def get_backend_url():
         if is_windows():
             backend_url = f"http://localhost:{5000 + port_id}/{name}" if status == 'free' else ''
         else:
-            backend_url = f"http://{server_ip}:{5000 + port_id}/{name}" if status == 'free' else ''
+            backend_url = f"http://{settings.SERVER_IP}:{5000 + port_id}/{name}" if status == 'free' else ''
 
 
 
