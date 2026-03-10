@@ -1,11 +1,11 @@
 import re
-from .util import check_timeline_format, set_yuan_line, get_zimu_index_list_by_time, get_ai_json, get_check_promot
-from .util import get_unit_interval_by_ai, merge_intervals, save_dict_to_json
-from .util import get_intervals_by_ai_find, get_start_end_t_id_list
+import settings
+from .time_utils import check_timeline_format, set_yuan_line, get_zimu_index_list_by_time
+from .interval import merge_intervals, get_start_end_t_id_list
+from .ai_caller import call_ai_match, find_intervals_by_ai, save_result_to_json
+from .prompts import build_match_subtitle_prompt
 
-mode2_dic = {}
 glo_ask_modal_name = 'deepseek'
-glo_check_probability = 0.88
 glo_part_list = ["观点：", "解释：", "故事：", "出路："]
 
 
@@ -79,7 +79,7 @@ def get_yuanwen_mode2(wenan_content):
                     'time_text': current_part['zimu_list'][-1]['time_text'],
                     'start': current_part['zimu_list'][-1]['start'],
                     'end': current_part['zimu_list'][-1]['end'],
-                    'text': yuan_text2  
+                    'text': yuan_text2
                 }
                 current_part['zimu_list'].append(new_zimu)
             elif '……' in line:
@@ -105,7 +105,6 @@ def get_yuanwen_mode2(wenan_content):
     return yuanwen_list
 
 
-
 def get_srt_list_by_time(zimu_list, start, end, yuan_text):
     yuan_wen_list = [
         {"text": yuan_text, "time": start},
@@ -119,147 +118,14 @@ def get_srt_list_by_time(zimu_list, start, end, yuan_text):
     return yuan_wen_srt_list
 
 
-def get_id_list_promot_mode2(yuan_text, zimu_union_text):
-
-    example = f'''
-[原文句子]
-西方用SWOT分析 (00:03:40,100)
-
-[时间序列]
-104
-00:03:25,100 --> 00:03:27,833
-真正的你要知道敌人是什么
-
-
-105
-00:03:28,133 --> 00:03:29,866
-你才有你的SWOT
-
-
-106
-00:03:30,233 --> 00:03:30,466
-老师
-
-
-107
-00:03:30,466 --> 00:03:32,333
-你可以给我们展开讲一下
-
-
-108
-00:03:32,433 --> 00:03:34,066
-为什么西方用这个SWOT
-
-
-109
-00:03:34,066 --> 00:03:35,200
-它到底解决什么问题
-
-[正确输出]
-{{
-    "id_list": [108],
-    "text": "为什么西方用这个SWOT"
-}}
-
-# 示例输入2：
-'''
-
-    ask = f'''请根据以下规则整理出与原文句子相关的时间序列并生成结构化JSON数据：
-# 处理规则
-1. 输入数据：
-   - [时间序列]：字幕片段（含字幕id,时间戳和文本）
-   - [原文句子]：需要匹配的目标句子（含参考时间点）
-
-2. 匹配要求：
-   - 将[时间序列]中与[原文句子]语义匹配的连续片段合并为一个条目
-   - 合并的这个条目和原文句子精确匹配
-
-3. JSON格式规范：
-   - 条目包含：
-     * id_list: 和原文句子匹配的字幕的id列表（数量和顺序与下面的文本text对应）
-     * text: 合并后的完整文本（用空格连接片段）
-{example}
-# 示例输入：
-
-[原文句子]
-因为在上市公司我做事做得很好，我在那都是做的最好的，但是那个时候会觉得这好像都是自己的能力，其实有很多是平台的能力 (00:08:07)
-
-[时间序列]
-276
-00:08:02,233 --> 00:08:04,866
-就是错把平台的能力
-
-277
-00:08:04,866 --> 00:08:05,700
-当自己的能力
-
-278
-00:08:06,233 --> 00:08:07,500
-因为在上市公司我
-
-279
-00:08:07,500 --> 00:08:08,700
-我做事做得很好
-
-280
-00:08:08,700 --> 00:08:10,400
-我在那都是做的最好的
-
-281
-00:08:10,700 --> 00:08:12,833
-但是这个呃
-
-282
-00:08:12,833 --> 00:08:13,666
-那时候会觉得
-
-283
-00:08:13,666 --> 00:08:14,700
-这好像都是自己的能力
-
-284
-00:08:14,700 --> 00:08:16,200
-其实有很多是平台的能力
-
-285
-00:08:17,000 --> 00:08:18,200
-资金不用你管
-
-286
-00:08:18,666 --> 00:08:21,100
-那个研发的那帮人不用你管
-
-287
-00:08:21,100 --> 00:08:22,066
-公司都给你弄好了
-
-[正确输出]
-{{
-    "id_list": [278, 279, 280, 281, 282, 283, 284],
-    "text": "因为在上市公司我 我做事做得很好 我在那都是做的最好的 但是这个呃 那时候会觉得 这好像都是自己的能力 其实有很多是平台的能力"
-}}
-
-# 待处理数据
-[原文句子]
-{yuan_text}
-
-[时间序列]
-{zimu_union_text}
-
-请严格按照示例格式输出JSON，确保：
-1. id_list, 合并的text 和 原文句子是匹配的
-2. 文本内容用单个空格连接片段
-3. 不使用换行符或特殊分隔符'''
-    return ask
-
-
-def get_keeps_mode2(ask, zimu, yuan_text, keep_intervals):
-    unit_intervals = get_unit_interval_by_ai(ask, zimu, yuan_text, glo_ask_modal_name, glo_check_probability)
+def _collect_keeps(ask, zimu, yuan_text, keep_intervals):
+    """调用 AI 匹配，将结果追加到 keep_intervals。"""
+    unit_intervals = call_ai_match(ask, zimu, yuan_text, glo_ask_modal_name)
     for unit_start, unit_end, unit_id_list, unit_zimu in unit_intervals:
         if unit_start:
             keep_intervals.append([unit_start, unit_end, unit_id_list, unit_zimu])
             continue
-        id_list = get_intervals_by_ai_find(yuan_text, zimu, glo_ask_modal_name)
+        id_list = find_intervals_by_ai(yuan_text, zimu, glo_ask_modal_name)
         if id_list:
             unit = get_start_end_t_id_list(zimu, id_list)
             if unit[0]:
@@ -271,28 +137,27 @@ def get_keeps_mode2(ask, zimu, yuan_text, keep_intervals):
 
 def get_intervals_by_ai_mode2(yuan_wen_srt_list):
     keep_intervals = []
-    for i, (yuan, zimu) in enumerate(yuan_wen_srt_list):
+    for yuan, zimu in yuan_wen_srt_list:
         yuan_text = yuan['text'] + ' (' + yuan['time'] + ')'
-        zimu_union_text = ''
-        for zimu_id, (start, end) , zimu_str, in zimu:
-            zimu_union_text = zimu_union_text + f'{zimu_id}\n{start} --> {end}\n{zimu_str}\n\n\n'
-        yuan_text1, yuan_text2 = None, None
-        if '...' in yuan_text:
-            yuan_text1 = yuan['text'].split('...')[0] + ' (' + yuan['time'] + ')'
-            yuan_text2 = yuan['text'].split('...')[1] + ' (' + yuan['time'] + ')'
-        elif '……' in yuan_text:
-            yuan_text1 = yuan['text'].split('……')[0] + ' (' + yuan['time'] + ')'
-            yuan_text2 = yuan['text'].split('……')[1] + ' (' + yuan['time'] + ')'
+        zimu_union_text = ''.join(
+            f'{zid}\n{s} --> {e}\n{txt}\n\n\n'
+            for zid, (s, e), txt in zimu
+        )
+        yuan_text1 = yuan_text2 = None
+        for sep in ('...', '……'):
+            if sep in yuan_text:
+                parts     = yuan['text'].split(sep)
+                suffix    = ' (' + yuan['time'] + ')'
+                yuan_text1 = parts[0] + suffix
+                yuan_text2 = parts[1] + suffix
+                break
         if yuan_text1:
-            ask = get_id_list_promot_mode2(yuan_text1, zimu_union_text)
-            keep_intervals = get_keeps_mode2(ask, zimu, yuan_text1, keep_intervals)
-            ask = get_id_list_promot_mode2(yuan_text2, zimu_union_text)
-            keep_intervals = get_keeps_mode2(ask, zimu, yuan_text2, keep_intervals)
+            keep_intervals = _collect_keeps(build_match_subtitle_prompt(yuan_text1, zimu_union_text), zimu, yuan_text1, keep_intervals)
+            keep_intervals = _collect_keeps(build_match_subtitle_prompt(yuan_text2, zimu_union_text), zimu, yuan_text2, keep_intervals)
         else:
-            ask = get_id_list_promot_mode2(yuan_text, zimu_union_text)
-            keep_intervals = get_keeps_mode2(ask, zimu, yuan_text, keep_intervals)
+            keep_intervals = _collect_keeps(build_match_subtitle_prompt(yuan_text, zimu_union_text), zimu, yuan_text, keep_intervals)
 
-    print(f'AI:\nkeep_intervals：\n{keep_intervals}')
+    print(f'AI keep_intervals:\n{keep_intervals}')
     return keep_intervals
 
 
@@ -342,10 +207,10 @@ def get_intervals_by_yuanwen(yuanwen, zimu_list):
         print(keep)
     print(f'merged_list={merged_list}')
     result = {'keep_intervals': keep_intervals, 'merged_intervals': merged_list}
-    save_dict_to_json(result)
+    save_result_to_json(result)
     return result
-    
-    
+
+
 def get_intervals_by_mode2(wenan_content, zimu_list):
     yuanwen = get_yuanwen_mode2(wenan_content)
     result = get_intervals_by_yuanwen(yuanwen, zimu_list)
