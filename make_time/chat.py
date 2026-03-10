@@ -1,6 +1,6 @@
 import time
 from openai import OpenAI
-from config import Config
+import settings
 
 ask_dic = {
     'cost': 0
@@ -8,8 +8,8 @@ ask_dic = {
 
 
 def ask_ai(ask, mod, json_format=False):
-    bailian_api_key = Config.BAILIAN_API_KEY
-    deepseek_api_key = Config.DEEPSEEK_API_KEY
+    bailian_api_key = settings.BAILIAN_API_KEY
+    deepseek_api_key = settings.DEEPSEEK_API_KEY
     system_prompt = 'You are a helpful assistant.'
 
 
