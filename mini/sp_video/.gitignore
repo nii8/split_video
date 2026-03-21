@@ -1,0 +1,8 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# 配置文件（敏感）
+data/config/config.yaml
