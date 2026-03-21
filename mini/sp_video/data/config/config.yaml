@@ -1,4 +1,5 @@
 # sp_video 配置文件
-# API Key 配置 - 推荐使用环境变量覆盖
+# API Key 配置
 
 DEEPSEEK_API_KEY: "sk-your-deepseek-api-key-here"
+BAILIAN_API_KEY: "sk-your-bailian-api-key-here"

@@ -1,17 +1,16 @@
 """
 settings.py — 全局配置中心
 
-所有常量都在这里定义，支持环境变量覆盖（方便部署）。
+所有常量都在这里定义。
 其他文件统一 import settings 来读取配置。
 """
-import os
 import yaml
 
 
 # ── 网络 ─────────────────────────────────────────────────────────────────────
-SERVER_IP    = os.environ.get("SERVER_IP",   "113.249.103.24")
-WORKER_IPS   = os.environ.get("WORKER_IPS",  "113.249.107.180,113.249.107.182").split(",")
-UPLOAD_TOKEN = os.environ.get("UPLOAD_TOKEN", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0N")
+SERVER_IP    = "113.249.103.24"
+WORKER_IPS   = ["113.249.107.180", "113.249.107.182"]
+UPLOAD_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0N"
 
 # ── 端口 ─────────────────────────────────────────────────────────────────────
 BASE_SSE_PORT  = 5001
@@ -27,7 +26,7 @@ AI_CONSECUTIVE_BONUS = 0.05   # 连续 ID 加分
 BACKEND_IDLE_SEC = 180   # 超过此秒数视为空闲
 
 # ── 数据目录 ─────────────────────────────────────────────────────────────────
-DATA_DIR = os.environ.get("DATA_DIR", "./data/hanbing")
+DATA_DIR = "./data/hanbing"
 
 
 # ── 从配置文件加载 API Key ────────────────────────────────────────────────────
@@ -41,4 +40,5 @@ def _load_yaml():
 
 _yaml = _load_yaml()
 
-DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", _yaml.get("DEEPSEEK_API_KEY", ""))
+DEEPSEEK_API_KEY = _yaml.get("DEEPSEEK_API_KEY", "")
+BAILIAN_API_KEY  = _yaml.get("BAILIAN_API_KEY",  "")
