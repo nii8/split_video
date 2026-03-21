@@ -1,20 +1,7 @@
 import os
-import json
-import re
 import subprocess
 import time
 from datetime import datetime
-
-glo_input_dir = './input'
-glo_dic = {
-    'cost': 0
-}
-
-def int_to_time(t):
-    minutes = int(t // 60)
-    seconds = int(t % 60)
-    milliseconds = round((t - int(t)) * 30.0, 1)
-    return f"{minutes}:{seconds}.{milliseconds:.1f}"
 
 
 def extract_audio(input_file):
@@ -30,22 +17,6 @@ def extract_audio(input_file):
     ]
     print(cmd)
     subprocess.run(cmd)
-
-
-def get_media_duration(video_path):
-    cmd = [
-        "ffprobe",
-        "-v", "error",
-        "-show_entries", "format=duration",
-        "-of", "default=noprint_wrappers=1:nokey=1",
-        video_path
-    ]
-    try:
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        print(f'{video_path} duration:', result.stdout)
-        return float(result.stdout)
-    except:
-        return float('inf')
 
 
 def cut_and_merge_audio(input_audio, user_stamp, keep_intervals):
@@ -147,20 +118,6 @@ def cut_and_merge_video_img(video_file, user_stamp, keep_intervals, video_id):
     return output_video
 
 
-def get_video_fps(video_path):
-    cmd = [
-        "ffprobe",
-        "-v", "error",
-        "-select_streams", "v:0",
-        "-show_entries", "stream=r_frame_rate",
-        "-of", "default=noprint_wrappers=1:nokey=1",
-        video_path
-    ]
-    result = subprocess.run(cmd, stdout=subprocess.PIPE, text=True)
-    num, den = map(int, result.stdout.strip().split('/'))
-    return num / den
-
-
 def time_str_to_seconds(time_str):
     time_str = time_str.replace(',', '.')
     hh_mm_ss, milliseconds = time_str.split('.')
@@ -207,19 +164,6 @@ def ffmpeg_cut_mp4(keep_intervals_list, video_path, video_id, user_id):
                 os.remove(f)
     return output_video_path
 
-
-def load_json_to_dict(file_path):
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        return data
-    except json.JSONDecodeError as e:
-        print(f"❌ JSON 解析错误: {e}")
-    except FileNotFoundError:
-        print(f"❌ 文件不存在: {file_path}")
-    except Exception as e:
-        print(f"❌ 读取文件时发生未知错误: {e}")
-    return None
 
 
 def cut_video_main(keep_intervals, video_path, video_id, user_id):

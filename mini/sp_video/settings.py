@@ -6,7 +6,6 @@ settings.py — 全局配置中心
 """
 import os
 import yaml
-import json
 
 
 # ── 网络 ─────────────────────────────────────────────────────────────────────
@@ -40,19 +39,6 @@ def _load_yaml():
         return {}
 
 
-def _load_json():
-    try:
-        with open('./data/config/config.json', 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except Exception:
-        return {}
-
-
 _yaml = _load_yaml()
-_cfg  = _load_json()
 
 DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", _yaml.get("DEEPSEEK_API_KEY", ""))
-BAILIAN_API_KEY  = os.environ.get("BAILIAN_API_KEY",  _yaml.get("BAILIAN_API_KEY",  ""))
-
-TOKEN_LIST = _cfg.get("token_list", [])
-NAME_DIC   = _cfg.get("name_dic",   {})

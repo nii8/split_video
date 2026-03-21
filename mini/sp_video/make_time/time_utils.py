@@ -86,14 +86,3 @@ def get_zimu_index_list_by_time(zimu_list, yuan):
         return []
     return [z for z in zimu_list if start_index <= z[0] <= end_index]
 
-
-def get_zimu_range_by_time(zimu_list, y_start_time):
-    """以参考时间为锚点，返回前后各50条字幕作为候选窗口。"""
-    for index, zimu in enumerate(zimu_list):
-        z_start_time, _ = remove_milliseconds(zimu[1])
-        if is_start_bigger_end(z_start_time, y_start_time):
-            ok_index = zimu[0]
-            start = max(1, ok_index - 50)
-            end   = min(len(zimu_list), ok_index + 50)
-            return zimu_list[start:end]
-    return None

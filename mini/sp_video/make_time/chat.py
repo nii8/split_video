@@ -1,3 +1,4 @@
+import os
 import time
 from openai import OpenAI
 import settings
@@ -8,7 +9,6 @@ ask_dic = {
 
 
 def ask_ai(ask, mod, json_format=False):
-    bailian_api_key = settings.BAILIAN_API_KEY
     deepseek_api_key = settings.DEEPSEEK_API_KEY
     system_prompt = 'You are a helpful assistant.'
 
@@ -16,6 +16,8 @@ def ask_ai(ask, mod, json_format=False):
     client, model_name = None, None
     # 模型列表：https://help.aliyun.com/zh/model-studio/getting-started/models
     if mod == 'deepseek-r1-70b':
+        # 需要 BAILIAN_API_KEY 时请使用环境变量 BAILIAN_API_KEY
+        bailian_api_key = os.environ.get("BAILIAN_API_KEY", "")
         model_name = 'deepseek-r1-distill-llama-70b'
         url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
         client = OpenAI(
@@ -23,6 +25,8 @@ def ask_ai(ask, mod, json_format=False):
             base_url=url,
         )
     elif mod == 'deepseek-r1':
+        # 需要 BAILIAN_API_KEY 时请使用环境变量 BAILIAN_API_KEY
+        bailian_api_key = os.environ.get("BAILIAN_API_KEY", "")
         model_name = 'deepseek-r1-0528'
         url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
         client = OpenAI(
