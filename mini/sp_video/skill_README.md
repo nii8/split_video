@@ -132,11 +132,37 @@ python skill.py phase2 --video_id 7Q3A0006 --prompt_file /tmp/custom_prompt.txt
 ```
 
 **执行逻辑**：
-1. 执行 Phase2（LLM 脚本重组）
-2. 执行 Phase3（AI 字幕时间轴匹配）
-3. 返回匹配到的时间片段列表供用户确认
+1. 若已有上次缓存的脚本（step2.txt），且未指定 `--use_cache` / `--force`，返回 `need_confirm_regen`
+2. `--use_cache`：跳过 Phase2，直接用缓存脚本执行 Phase3
+3. `--force` 或 `--prompt_file`：重新执行 Phase2 再执行 Phase3
+4. 返回匹配到的时间片段列表供用户确认
 
-**返回示例**：
+**缓存确认返回示例**（有旧脚本时）：
+```json
+{
+  "status": "need_confirm_regen",
+  "video_id": "7Q3A0006",
+  "message": "已有上次生成的脚本缓存，是否直接使用？",
+  "cached_script_preview": "00:00:19,833 --> 00:00:20,633\n知己知彼\n...",
+  "hint": "使用缓存: phase2 --video_id ... --use_cache  |  重新生成: phase2 --video_id ... --force"
+}
+```
+
+**展示给用户的方式**（need_confirm_regen）：
+> 上次已生成过脚本，预览如下：
+> ```
+> 00:00:19,833 --> 00:00:20,633
+> 知己知彼
+> ...
+> ```
+> 是否直接使用上次脚本？还是重新生成？
+
+用户回答后：
+- 用上次的 → `phase2 --video_id 7Q3A0006 --use_cache`
+- 重新生成 → `phase2 --video_id 7Q3A0006 --force`
+- 用自定义提示词 → 将新提示词写入文件，`phase2 --video_id 7Q3A0006 --prompt_file /tmp/p.txt`
+
+**匹配完成返回示例**：
 ```json
 {
   "status": "need_confirm_intervals",
