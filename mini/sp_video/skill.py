@@ -114,6 +114,10 @@ def parse_oss_paths(paths):
             continue
         filename = parts[-1]
         video_id = parts[-2]
+        # 只接受标准结构：父目录名 == 文件名去掉扩展名（如 C1873/C1873.mp4）
+        filename_stem = filename.rsplit('.', 1)[0]
+        if video_id != filename_stem:
+            continue
         month = parts[0] if len(parts) >= 1 else ''
         batch = '/'.join(parts[1:-2]) if len(parts) > 2 else ''
         oss_base = path[:path.rfind('/')]
