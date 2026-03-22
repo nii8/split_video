@@ -115,7 +115,7 @@ def parse_oss_paths(paths):
         filename = parts[-1]
         video_id = filename.rsplit('.', 1)[0]  # 始终用文件名作为 video_id
         month = parts[0] if len(parts) >= 1 else ''
-        batch = '/'.join(parts[1:-2]) if len(parts) > 2 else ''
+        batch = '/'.join(p for p in parts[1:-2] if p != 'ff') if len(parts) > 2 else ''
         oss_base = path[:path.rfind('/')]
 
         if video_id not in video_map:
@@ -412,8 +412,9 @@ def cmd_generate(args):
     filename  = os.path.basename(output_path)
     month     = state['oss_month']
     batch     = state['oss_batch']
-    oss_dest  = f"{OSS_DEST_BASE}/{month}/{batch}/{video_id}/{filename}"
-    video_url = f"{VIDEO_URL_BASE}/{month}/{batch}/{video_id}/{filename}"
+    mid = f"{batch}/" if batch else ""
+    oss_dest  = f"{OSS_DEST_BASE}/{month}/{mid}{video_id}/{filename}"
+    video_url = f"{VIDEO_URL_BASE}/{month}/{mid}{video_id}/{filename}"
 
     # 上传到 OSS
     log(f'上传到 OSS: {oss_dest}')
