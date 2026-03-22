@@ -76,14 +76,22 @@ def save_state(video_id, state):
 
 # ── OSS 工具 ──────────────────────────────────────────────────────────────────
 def oss_ls():
-    """列出 OSS 上的文件路径列表（使用 -s 简洁模式）"""
+    """列出 OSS 上的文件路径列表"""
     result = subprocess.run(
-        ['ossutil', 'ls', OSS_SOURCE_BASE, '-s'],
+        ['ossutil', 'ls', OSS_SOURCE_BASE],
         capture_output=True, text=True
     )
     lines = result.stdout.strip().split('\n')
-    # 过滤目录条目（以 / 结尾）
-    return [l.strip() for l in lines if l.strip().startswith('oss://') and not l.strip().endswith('/')]
+    # 跳过第一行（头部），从每行提取 oss:// 开头的路径
+    paths = []
+    for l in lines[1:]:
+        # ossutil 输出格式：每行末尾是 oss://... 路径
+        idx = l.find('oss://')
+        if idx != -1:
+            path = l[idx:].strip()
+            if not path.endswith('/'):  # 过滤目录
+                paths.append(path)
+    return paths
 
 
 def parse_oss_paths(paths):
