@@ -1,0 +1,110 @@
+# OpenClaw 调用 skill.py 设计方案
+
+## 一、4 个阶段对齐
+
+| 阶段 | 描述 | skill.py 命令 | 输出文件 |
+|------|------|---------------|----------|
+| Phase1 | 从 SRT 筛选有价值的字幕 | `start` | step1.txt |
+| Phase2 | 基于筛选字幕 + 用户提示词生成脚本 | `phase2` | step2.txt |
+| Phase3 | 将脚本匹配到字幕时间轴，用户可修改 | `match` | intervals.json |
+| Phase4 | 根据时间序列生成视频 | `generate` | MP4 上传 OSS |
+
+---
+
+## 二、当前 skill.py 的问题
+
+当前 `phase2` 命令把 **Phase2 + Phase3 合并在一起执行**，用户无法在 Phase3 中间插入修改时间序列的步骤。
+
+---
+
+## 三、OpenClaw 调用流程
+
+```
+1. list
+   → 返回视频列表
+
+2. start --video_id C1873
+   → Phase1 执行，返回 need_confirm_prompt
+
+3. phase2 --video_id C1873 [--prompt_file /tmp/p.txt]
+   → Phase2 执行，只生成脚本，返回 need_confirm_script
+
+4. （用户确认脚本后）
+
+5. match --video_id C1873
+   → Phase3 执行，生成时间序列，返回 need_confirm_intervals
+
+6. （用户可修改 intervals，发回给 OpenClaw）
+
+7. update_intervals --video_id C1873 --intervals_file /tmp/x.json
+   → 写入新 intervals.json，返回 need_confirm_intervals
+
+8. confirm_intervals --video_id C1873
+   → 确认 intervals，进入 Phase4 就绪状态
+
+9. generate --video_id C1873
+   → Phase4 执行，返回 success + url
+```
+
+---
+
+## 四、需要的 skill.py 命令清单
+
+| 命令 | 参数 | 返回状态 | 说明 |
+|------|------|----------|------|
+| `list` | - | videos[] | 查询可用视频列表 |
+| `start` | --video_id | need_confirm_prompt | 下载视频 + Phase1 |
+| `phase2` | --video_id, [--prompt_file] | need_confirm_script | 只执行 Phase2，生成脚本 |
+| `match` | --video_id | need_confirm_intervals | 只执行 Phase3，生成时间序列 |
+| `update_intervals` | --video_id, --intervals_file | need_confirm_intervals | 用户修改 intervals 后写入缓存 |
+| `confirm_intervals` | --video_id | phase3_confirmed | 用户确认 intervals，进入 Phase4 就绪 |
+| `generate` | --video_id | success + url | Phase4 生成视频并上传 |
+
+---
+
+## 五、OpenClaw 内部状态设计
+
+```python
+# OpenClaw 维护的状态
+skill_context = {
+    "video_id": "C1873",
+    "phase": 0,          # 0=初始, 1=start完成, 2=script完成, 3=intervals确认, 4=完成
+    "cache_dir": "./data/skill_state/C1873/",
+    "srt_path": "./data/hanbing/C1873/C1873.srt",
+    "video_path": "./data/hanbing/C1873/C1873.mp4",
+    "oss_month": "01",
+    "oss_batch": "002",
+    "intervals": [...]   # 用户确认后的 intervals
+}
+```
+
+---
+
+## 六、状态流转图
+
+```
+list → start → phase2 → match → [update_intervals] → confirm_intervals → generate
+                              ↑                              │
+                              └──────── 用户修改 intervals ──┘
+```
+
+---
+
+## 七、返回状态说明
+
+| 状态 | 含义 | 下一步操作 |
+|------|------|------------|
+| `need_confirm_prompt` | Phase1 完成，等待确认提示词 | 用户确认后调 phase2 |
+| `need_confirm_script` | Phase2 完成，脚本已生成 | 用户确认后调 match |
+| `need_confirm_intervals` | Phase3 完成，时间序列已生成 | 用户确认后调 confirm_intervals |
+| `phase3_confirmed` | 用户已确认时间序列 | 准备就绪，可调 generate |
+| `success` | Phase4 完成 | 返回 URL |
+
+---
+
+## 八、考虑点（待确认）
+
+1. **缓存生命周期**：何时清理 ./data/skill_state/ 让用户重新开始？
+2. **错误恢复**：API 失败/网络中断时如何重试？
+3. **长时间操作**：下载视频/生成视频 可能需要分钟级，如何处理超时？
+4. **用户意图转换**：OpenClaw 如何将用户说"确认"映射到正确的命令？
