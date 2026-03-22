@@ -78,35 +78,43 @@ def save_state(video_id, state):
 def oss_ls():
     """列出 OSS 上的文件路径列表（使用 -s 简洁模式）"""
     result = subprocess.run(
-        ['ossutil', 'ls', OSS_SOURCE_BASE, '--recursive', '-s'],
+        ['ossutil', 'ls', OSS_SOURCE_BASE, '-s'],
         capture_output=True, text=True
     )
     lines = result.stdout.strip().split('\n')
-    return [l.strip() for l in lines if l.strip().startswith('oss://')]
+    # 过滤目录条目（以 / 结尾）
+    return [l.strip() for l in lines if l.strip().startswith('oss://') and not l.strip().endswith('/')]
 
 
 def parse_oss_paths(paths):
     """
     从 OSS 路径列表提取成对的 mp4+srt 信息。
 
-    路径格式：oss://kaixin-v/hanbing/2026/{month}/{batch}/{video_id}/{filename}
+    路径层级不固定，但 video_id 始终是倒数第二段，filename 是最后一段：
+      oss://kaixin-v/hanbing/2026/{month}/[.../{batch}/]{video_id}/{filename}
     返回：{video_id: {month, batch, oss_base, mp4_name, srt_name, has_mp4, has_srt}}
     """
     prefix = OSS_SOURCE_BASE.rstrip('/')
     video_map = {}
 
     for path in paths:
+        if not path.endswith('.mp4') and not path.endswith('.srt'):
+            continue
         rel = path[len(prefix):]
         parts = rel.strip('/').split('/')
-        if len(parts) < 4:
+        if len(parts) < 2:
             continue
-        month, batch, video_id, filename = parts[0], parts[1], parts[2], parts[3]
+        filename = parts[-1]
+        video_id = parts[-2]
+        month = parts[0] if len(parts) >= 1 else ''
+        batch = '/'.join(parts[1:-2]) if len(parts) > 2 else ''
+        oss_base = path[:path.rfind('/')]
 
         if video_id not in video_map:
             video_map[video_id] = {
                 'month': month,
                 'batch': batch,
-                'oss_base': f"{prefix}/{month}/{batch}/{video_id}",
+                'oss_base': oss_base,
                 'has_mp4': False,
                 'has_srt': False,
             }
