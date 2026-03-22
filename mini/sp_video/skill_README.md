@@ -34,7 +34,7 @@ python skill.py list
 ```
 
 **执行逻辑**：
-1. 执行 `ossutil ls oss://kaixin-v/hanbing/2026 --recursive -s`
+1. 执行 `ossutil ls oss://kaixin-v/hanbing/2026`
 2. 解析出成对的 `.mp4` + `.srt` 文件，提取 `video_id`
 3. 对比本地缓存 `data/video_cache.json`：
    - OSS 已删除的视频 → 从缓存移除
@@ -118,8 +118,14 @@ python skill.py start --video_id 7Q3A0006
 **用途**：用户确认（或修改）提示词后调用。
 
 ```bash
-# 使用默认提示词
+# 有缓存时第一次调用 → 返回 need_confirm_regen，询问用户
 python skill.py phase2 --video_id 7Q3A0006
+
+# 用户确认使用缓存
+python skill.py phase2 --video_id 7Q3A0006 --use_cache
+
+# 用户要求重新生成
+python skill.py phase2 --video_id 7Q3A0006 --force
 
 # 使用用户修改的提示词（从文件读取，避免 shell 转义问题）
 python skill.py phase2 --video_id 7Q3A0006 --prompt_file /tmp/custom_prompt.txt
@@ -216,7 +222,8 @@ python skill.py generate --video_id 7Q3A0006
 
 用户: 确认（或：把提示词改成...）
 你 → 如需修改，先将新提示词写入 /tmp/prompt_7Q3A0006.txt
-   → skill.py phase2 --video_id 7Q3A0006 [--prompt_file /tmp/prompt_7Q3A0006.txt]
+   → skill.py phase2 --video_id 7Q3A0006 [--force | --use_cache | --prompt_file /tmp/prompt_7Q3A0006.txt]
+   → 若返回 need_confirm_regen（有缓存），询问用户是否复用上次脚本
    → 展示时间片段列表 → 询问确认
 
 用户: 确认

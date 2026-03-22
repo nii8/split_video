@@ -307,6 +307,8 @@ def cmd_phase2(args):
         out({'status': 'error', 'message': 'Phase1 尚未完成，请先运行 start'})
 
     state_dir = os.path.join(STATE_DIR, video_id)
+    step2_path = os.path.join(state_dir, 'step2.txt')
+    has_cache = os.path.exists(step2_path)
 
     # 读取自定义提示词（可选）
     custom_prompt = None
@@ -317,11 +319,30 @@ def cmd_phase2(args):
             custom_prompt = f.read().strip()
         log(f'使用自定义提示词（{len(custom_prompt)} 字符）')
 
-    # 如有自定义 prompt，清除 step2 缓存以强制重新生成
-    step2_path = os.path.join(state_dir, 'step2.txt')
-    if custom_prompt and os.path.exists(step2_path):
+    # 有缓存且未明确指定行为 → 询问用户是否复用
+    if has_cache and not custom_prompt and not args.use_cache and not args.force:
+        with open(step2_path, 'r', encoding='utf-8') as f:
+            cached_script = f.read()
+        preview = cached_script[:500] + '...' if len(cached_script) > 500 else cached_script
+        out({
+            'status':   'need_confirm_regen',
+            'video_id': video_id,
+            'message':  '已有上次生成的脚本缓存，是否直接使用？',
+            'cached_script_preview': preview,
+            'hint':     '使用缓存: phase2 --video_id ... --use_cache  |  重新生成: phase2 --video_id ... --force',
+        })
+
+    # --force：清除旧 step2 缓存（用户明确要重新生成）
+    # 自定义 prompt：先备份旧 step2，失败时可恢复
+    step2_backup = None
+    if args.force and has_cache:
         os.remove(step2_path)
-        log('已清除 step2 缓存')
+        log('已清除 step2 缓存，重新生成')
+    elif custom_prompt and has_cache:
+        with open(step2_path, 'r', encoding='utf-8') as f:
+            step2_backup = f.read()
+        os.remove(step2_path)
+        log('已备份 step2 缓存，使用自定义提示词重新生成')
 
     # 读取 step1 结果
     step1_path = os.path.join(state_dir, 'step1.txt')
@@ -330,7 +351,7 @@ def cmd_phase2(args):
     with open(step1_path, 'r', encoding='utf-8') as f:
         result1 = f.read()
 
-    # Phase2：如有自定义 prompt，临时替换模块全局变量
+    # Phase2
     log('执行 Phase2（LLM 脚本重组）...')
     try:
         import main as main_module
@@ -343,7 +364,7 @@ def cmd_phase2(args):
     except Exception as e:
         out({'status': 'error', 'stage': 2, 'message': str(e)})
 
-    # Phase3：清除旧 intervals 缓存，确保用最新 step2 重新匹配
+    # Phase3：清除旧 intervals 缓存
     intervals_path = os.path.join(state_dir, 'intervals.json')
     if os.path.exists(intervals_path):
         os.remove(intervals_path)
@@ -352,9 +373,21 @@ def cmd_phase2(args):
     try:
         keep_intervals = run_phase3(state['srt_path'], result2, output_dir=state_dir)
     except Exception as e:
+        # Phase3 异常：恢复 step2 备份（仅自定义 prompt 场景）
+        if step2_backup is not None:
+            with open(step2_path, 'w', encoding='utf-8') as f:
+                f.write(step2_backup)
+            log('Phase3 异常，已恢复 step2 缓存')
         out({'status': 'error', 'stage': 3, 'message': str(e)})
 
     if not keep_intervals:
+        # 自定义 prompt 匹配失败：恢复旧 step2 缓存
+        if step2_backup is not None:
+            if os.path.exists(step2_path):
+                os.remove(step2_path)
+            with open(step2_path, 'w', encoding='utf-8') as f:
+                f.write(step2_backup)
+            log('自定义提示词匹配失败，已恢复原 step2 缓存')
         out({'status': 'error', 'stage': 3, 'message': '未匹配到任何时间片段，请检查字幕或调整脚本'})
 
     state['phase'] = 3
@@ -455,6 +488,10 @@ def main():
     p_p2.add_argument('--video_id', required=True, help='视频编号')
     p_p2.add_argument('--prompt_file', default=None,
                       help='自定义 Phase2 提示词文件路径（不传则使用默认提示词）')
+    p_p2.add_argument('--use_cache', action='store_true',
+                      help='直接使用上次缓存的脚本，跳过 Phase2 重新生成')
+    p_p2.add_argument('--force', action='store_true',
+                      help='强制重新执行 Phase2，忽略缓存')
 
     # generate
     p_gen = sub.add_parser('generate', help='生成视频并上传 OSS（Phase4）')
