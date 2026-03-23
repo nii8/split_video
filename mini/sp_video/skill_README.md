@@ -280,6 +280,183 @@ sp_video/
 
 ---
 
+## OpenClaw 使用场景
+
+以下是面向 OpenClaw（龙虾）智能体的典型使用方式。所有场景**零代码改动**，由龙虾负责串联命令、管理中间状态。
+
+### 高频使用预测
+
+| 频率 | 场景 |
+|------|------|
+| ★★★★★ | 场景A：一键全自动生成 |
+| ★★★★ | 场景E：迭代优化（嫌视频太长/风格不对） |
+| ★★★★ | 场景B：多脚本竞选 |
+| ★★★ | 场景C：风格定制（励志版/干货版） |
+| ★★★ | 场景D：按主题关键词找视频 |
+| ★★ | 场景F：批量处理所有新视频 |
+
+---
+
+### 场景A：一键全自动生成 ★★★★★
+
+**用户说**：读取记忆，帮我生成视频 7Q3A0006
+
+**龙虾执行**：
+```
+list（确认视频存在）
+→ start --video_id 7Q3A0006
+→ phase2 --video_id 7Q3A0006 --force     ← 必须加 --force，防止复用旧脚本生成重复视频
+→ generate --video_id 7Q3A0006
+```
+
+**返回给用户**：
+> 视频已生成！
+>
+> **脚本片段**（共8条）：
+> 1. `00:00:27` → `00:00:30` — 不是99% 是99.99%
+> 2. `00:01:15` → `00:01:22` — 失败不是终点，而是转折
+> ...
+>
+> **点击观看**：http://video.kaixin.wiki/hanbing/2026/03/001/7Q3A0006/xxx.mp4
+
+**注意**：`phase2 --force` 会清除旧的 `step2.txt`，`intervals.json` 每次 phase2 都自动重建，确保每次生成内容不同。`step1.txt` 可复用（字幕筛选结果是确定的）。
+
+---
+
+### 场景B：多脚本竞选，用户挑一个 ★★★★
+
+**用户说**：生成视频 7Q3A0006 的脚本 3 次，我来选
+
+**龙虾执行**：
+```
+start --video_id 7Q3A0006
+→ phase2 --video_id 7Q3A0006 --force   → 保存 response_1（含 intervals 数组）
+→ phase2 --video_id 7Q3A0006 --force   → 保存 response_2
+→ phase2 --video_id 7Q3A0006 --force   → 保存 response_3
+```
+
+**返回给用户**：3 份脚本片段列表，编号展示，请用户选择
+
+**用户说**：用第 2 个
+
+**龙虾执行**：
+```
+将 response_2 中的 intervals 写回 data/skill_state/7Q3A0006/intervals.json
+→ generate --video_id 7Q3A0006
+```
+
+**备份说明**：每次 `--force` 会覆盖文件系统中的 `step2.txt` 和 `intervals.json`，但**龙虾在内存中保存了全部3次 JSON 输出**（每次 phase2 的响应都包含完整 intervals 数组）。用户选定后，龙虾将对应的 intervals 写回文件再 generate，无需额外备份机制。
+
+---
+
+### 场景C：风格定制（励志版/干货版/搞笑版）★★★
+
+**用户说**：生成 7Q3A0006 的励志版视频
+
+**龙虾执行**：
+```
+# 龙虾根据"励志"自动构造 prompt，写入临时文件
+写入 /tmp/prompt_7Q3A0006.txt：
+  "核心指令：...（在默认 prompt 基础上强调：开头必须用最能引发共鸣的金句，
+   结尾必须有升华感，整体情绪向上，激励观众面对困难）"
+
+start --video_id 7Q3A0006
+→ phase2 --video_id 7Q3A0006 --prompt_file /tmp/prompt_7Q3A0006.txt
+→ generate --video_id 7Q3A0006
+```
+
+**用户说**：再给我一个干货总结版
+
+**龙虾执行**：构造干货 prompt → `phase2 --force --prompt_file /tmp/prompt_gk.txt` → `generate`
+
+**龙虾能力**：龙虾本身是 LLM，可根据用户描述的风格词（励志/干货/悬疑/搞笑）自动生成 prompt 并写入文件，无需用户手写。
+
+---
+
+### 场景D：按主题关键词找视频再生成 ★★★
+
+**用户说**：找一个讲创业失败的视频，帮我生成一个励志短视频
+
+**龙虾执行**：
+```
+list   → 获取所有视频摘要
+# 龙虾分析 summary 字段，找最匹配"创业失败"的视频ID
+# 假设匹配到 7Q3A0006
+start --video_id 7Q3A0006
+→ phase2 --video_id 7Q3A0006 --prompt_file /tmp/p.txt   （聚焦"失败后重新出发"主题）
+→ generate --video_id 7Q3A0006
+```
+
+`list` 返回的 `summary` 字段即为语义检索素材，龙虾直接做 LLM 匹配，无需额外接口。
+
+---
+
+### 场景E：迭代优化已生成的视频 ★★★★
+
+**用户说**：上次 7Q3A0006 的视频太啰嗦了，重剪一个简洁版
+
+**龙虾执行**：
+```
+构造精简 prompt："每句话直击主题，去除铺垫，总时长控制在3分钟内"
+写入 /tmp/prompt_concise.txt
+→ phase2 --video_id 7Q3A0006 --force --prompt_file /tmp/prompt_concise.txt
+→ generate --video_id 7Q3A0006
+```
+
+**用户说**：还是太长，再短一点
+
+**龙虾执行**：构造更激进的精简 prompt → 同上，生成新版本
+
+**说明**：`step1.txt` 始终复用（字幕筛选不变），只重跑 Phase2+3+4，速度快。
+
+---
+
+### 场景F：批量处理所有新视频 ★★
+
+**用户说**：把今天新上传的视频都处理一遍
+
+**龙虾执行**：
+```
+list   → 检查 new 字段
+# 对每个新 video_id 串行执行：
+  start --video_id {id}
+  → phase2 --video_id {id} --force
+  → generate --video_id {id}
+```
+
+**汇报给用户**：
+> 共处理 3 个新视频：
+> - 7Q3A0006：http://video.kaixin.wiki/...
+> - 7Q3A0012：http://video.kaixin.wiki/...
+> - 7Q3A0018：http://video.kaixin.wiki/...
+
+---
+
+### 场景G：先看脚本再决定要不要生成
+
+**用户说**：先给我看看 7Q3A0006 会剪出哪些内容，再决定
+
+**龙虾执行**：
+```
+start --video_id 7Q3A0006
+→ phase2 --video_id 7Q3A0006 --force
+  （phase2 返回 need_confirm_intervals，包含完整片段列表，此时停止）
+```
+
+**返回给用户**：展示全部片段的时间 + 文字，等待确认
+
+**用户说**：可以，生成吧
+
+**龙虾执行**：`generate --video_id 7Q3A0006`
+
+---
+
+### 关于定时推送
+
+定时自动处理（如"每天晚上自动处理新视频"）依赖 OpenClaw 所在平台的调度能力（钉钉机器人定时触发等），不在 skill.py 控制范围内。若平台支持，可将 `list + 批量 start/phase2/generate` 配置为定时任务。
+
+---
+
 ## 依赖要求
 
 - Python 3.8+

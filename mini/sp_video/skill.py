@@ -9,6 +9,51 @@ OpenClaw 通过子进程调用，所有标准输出为 JSON，进度日志输出
     python skill.py start --video_id 7Q3A0006
     python skill.py phase2 --video_id 7Q3A0006 [--prompt_file /tmp/p.txt]
     python skill.py generate --video_id 7Q3A0006
+
+─────────────────────────────────────────────────────────────────────────────
+OpenClaw 典型使用场景（龙虾侧串联逻辑，skill.py 本身无需改动）
+─────────────────────────────────────────────────────────────────────────────
+
+【场景A ★★★★★】一键全自动生成
+    用户："生成视频 7Q3A0006"
+    龙虾：list → start → phase2 --force → generate → 返回脚本文字 + 链接
+    注意：必须用 --force，防止复用旧脚本生成重复视频。
+          step1.txt 可复用；step2.txt 和 intervals.json 每次重建。
+
+【场景B ★★★★】多脚本竞选，用户挑一个
+    用户："生成 7Q3A0006 脚本 3 次，我来选"
+    龙虾：start → phase2 --force（×3，每次保存 JSON 响应到内存）
+          → 展示 3 份片段列表 → 用户选第 N 个
+          → 将第 N 次响应中的 intervals 写回 intervals.json → generate
+    备份：不需要备份文件。每次 phase2 的 JSON stdout 含完整 intervals 数组，
+          龙虾内存即备份，选定后写回文件再 generate 即可。
+
+【场景C ★★★】风格定制（励志版 / 干货版 / 搞笑版）
+    用户："生成 7Q3A0006 的励志版视频"
+    龙虾：根据风格词构造 prompt → 写入 /tmp/prompt_xxx.txt
+          → start → phase2 --prompt_file /tmp/prompt_xxx.txt → generate
+
+【场景D ★★★】按主题关键词找视频再生成
+    用户："找一个讲创业失败的，生成励志短视频"
+    龙虾：list（获取所有 summary）→ LLM 分析匹配最近的 video_id
+          → start → phase2 --prompt_file（聚焦该主题）→ generate
+
+【场景E ★★★★】迭代优化已生成的视频
+    用户："上次视频太啰嗦，重剪一个简洁版"
+    龙虾：构造精简 prompt → phase2 --force --prompt_file → generate
+          step1.txt 始终复用，只重跑 Phase2+3+4。
+
+【场景F ★★】批量处理所有新视频
+    用户："把今天新上传的视频都处理一遍"
+    龙虾：list（过滤 new > 0 的 video_id）
+          → 对每个 id 串行：start → phase2 --force → generate
+          → 汇报所有链接
+
+【场景G】先看脚本再决定要不要生成
+    用户："先看看 7Q3A0006 会剪什么内容"
+    龙虾：start → phase2 --force（停在 need_confirm_intervals，展示片段列表）
+          → 用户确认后 → generate
+─────────────────────────────────────────────────────────────────────────────
 """
 
 import os
