@@ -457,6 +457,49 @@ start --video_id 7Q3A0006
 
 ---
 
+## 日志与超时说明
+
+### 日志文件
+
+所有运行日志同时输出到 **stderr** 和 **文件** `/tmp/skill.log`：
+
+```bash
+tail -f /tmp/skill.log
+```
+
+日志格式示例：
+```
+[2026-03-24 10:30:15] [START] skill.py 进程启动
+[2026-03-24 10:30:15] [CMD] python3 skill.py start --video_id C1873
+[2026-03-24 10:30:15] [DISPATCH] 命令: start, video_id: C1873
+[2026-03-24 10:30:16] [START] oss_download: oss://.../C1873.mp4 -> ./data/hanbing/C1873/C1873.mp4
+[2026-03-24 10:35:20] [END] oss_download 完成，耗时 304.5秒
+[2026-03-24 10:35:21] [START] Phase1 执行（LLM 筛选字幕）
+[2026-03-24 10:36:45] [END] Phase1 完成，耗时 84.1秒
+...
+[2026-03-24 10:40:30] [EXIT] status=success
+```
+
+### 超时设置
+
+为防止网络问题导致长时间卡住，各环节设置了超时：
+
+| 环节 | 超时 | 说明 |
+|------|------|------|
+| `ossutil ls` 查询 OSS 文件列表 | 120秒 | |
+| `ossutil cp` 下载视频/字幕 | 1200秒（20分钟） | 大视频可能较慢 |
+| `ossutil cp` 上传视频到 OSS | 1200秒（20分钟） | |
+| LLM 生成摘要（list 命令） | 120秒 | |
+| Phase1/2 LLM 调用 | 900秒（15分钟） | 流式输出 |
+| Phase3 AI 匹配 | 900秒（15分钟） | 每个句子调用一次 |
+
+超时后会报错退出，错误信息示例：
+```json
+{"status": "error", "stage": 2, "message": "Phase 2 失败: ...", "error_type": "TimeoutError"}
+```
+
+---
+
 ## 依赖要求
 
 - Python 3.8+

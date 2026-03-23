@@ -61,6 +61,7 @@ import sys
 import json
 import argparse
 import subprocess
+import time
 from datetime import datetime
 
 # 确保可以 import 同目录模块
@@ -68,6 +69,16 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import settings
 from main import run_phase1, run_phase2, run_phase3, run_phase4, PHASE2_PROMPT
+
+# ── 日志文件配置 ───────────────────────────────────────────────────────────────
+LOG_FILE = '/tmp/skill.log'
+
+def log_to_file(msg):
+    """同时输出到 stderr 和日志文件"""
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    log_line = f'[{timestamp}] {msg}'
+    with open(LOG_FILE, 'a', encoding='utf-8') as f:
+        f.write(log_line + '\n')
 
 # ── 常量 ──────────────────────────────────────────────────────────────────────
 OSS_SOURCE_BASE = "oss://kaixin-v/hanbing/2026"
@@ -81,6 +92,8 @@ STATE_DIR       = "./data/skill_state"
 # ── 输出工具 ──────────────────────────────────────────────────────────────────
 def out(data):
     """输出 JSON 并退出（success→0，error→1）"""
+    log(f'[EXIT] status={data.get("status")}')
+    log_to_file(f'[EXIT] status={data.get("status")}')
     print(json.dumps(data, ensure_ascii=False, indent=2))
     sys.exit(0 if data.get('status') != 'error' else 1)
 
@@ -88,6 +101,7 @@ def out(data):
 def log(msg):
     """进度日志输出到 stderr，不影响 JSON stdout"""
     print(f'[skill] {msg}', file=sys.stderr, flush=True)
+    log_to_file(f'[skill] {msg}')
 
 
 # ── 缓存 / 状态工具 ───────────────────────────────────────────────────────────
@@ -122,10 +136,24 @@ def save_state(video_id, state):
 # ── OSS 工具 ──────────────────────────────────────────────────────────────────
 def oss_ls():
     """列出 OSS 上的文件路径列表"""
-    result = subprocess.run(
-        ['ossutil', 'ls', OSS_SOURCE_BASE],
-        capture_output=True, text=True
-    )
+    log('[START] oss_ls 开始查询 OSS')
+    log_to_file('[START] oss_ls 开始查询 OSS')
+    try:
+        result = subprocess.run(
+            ['ossutil', 'ls', OSS_SOURCE_BASE],
+            capture_output=True, text=True,
+            timeout=120  # 添加超时
+        )
+        log(f'[END] oss_ls 完成，返回代码: {result.returncode}')
+        log_to_file(f'[END] oss_ls 完成，返回代码: {result.returncode}')
+    except subprocess.TimeoutExpired:
+        log('[ERROR] oss_ls 超时（60秒）')
+        log_to_file('[ERROR] oss_ls 超时（60秒）')
+        out({'status': 'error', 'message': 'ossutil ls 超时'})
+    except Exception as e:
+        log(f'[ERROR] oss_ls 异常: {e}')
+        log_to_file(f'[ERROR] oss_ls 异常: {e}')
+        out({'status': 'error', 'message': f'ossutil 查询失败: {e}'})
     lines = result.stdout.strip().split('\n')
     # 跳过第一行（头部），从每行提取 oss:// 开头的路径
     paths = []
@@ -185,34 +213,77 @@ def parse_oss_paths(paths):
 
 def oss_download(oss_path, local_path):
     """从 OSS 下载单个文件（强制覆盖）"""
+    log(f'[START] oss_download: {oss_path} -> {local_path}')
+    log_to_file(f'[START] oss_download: {oss_path} -> {local_path}')
+    start_time = time.time()
     os.makedirs(os.path.dirname(local_path), exist_ok=True)
-    subprocess.run(['ossutil', 'cp', oss_path, local_path, '-f'], check=True)
+    try:
+        subprocess.run(['ossutil', 'cp', oss_path, local_path, '-f'], check=True, timeout=1200)
+        elapsed = time.time() - start_time
+        log(f'[END] oss_download 完成，耗时 {elapsed:.1f}秒')
+        log_to_file(f'[END] oss_download 完成，耗时 {elapsed:.1f}秒')
+    except subprocess.TimeoutExpired:
+        log(f'[ERROR] oss_download 超时（600秒）: {oss_path}')
+        log_to_file(f'[ERROR] oss_download 超时（600秒）: {oss_path}')
+        raise Exception(f'下载超时（600秒）: {oss_path}')
+    except Exception as e:
+        log(f'[ERROR] oss_download 失败: {oss_path}, error: {e}')
+        log_to_file(f'[ERROR] oss_download 失败: {oss_path}, error: {e}')
+        raise
 
 
 def oss_upload(local_path, oss_dest):
     """上传文件到 OSS（强制覆盖）"""
-    subprocess.run(['ossutil', 'cp', local_path, oss_dest, '-f'], check=True)
+    log(f'[START] oss_upload: {local_path} -> {oss_dest}')
+    log_to_file(f'[START] oss_upload: {local_path} -> {oss_dest}')
+    start_time = time.time()
+    try:
+        subprocess.run(['ossutil', 'cp', local_path, oss_dest, '-f'], check=True, timeout=1200)
+        elapsed = time.time() - start_time
+        log(f'[END] oss_upload 完成，耗时 {elapsed:.1f}秒')
+        log_to_file(f'[END] oss_upload 完成，耗时 {elapsed:.1f}秒')
+    except subprocess.TimeoutExpired:
+        log(f'[ERROR] oss_upload 超时（600秒）')
+        log_to_file(f'[ERROR] oss_upload 超时（600秒）')
+        raise Exception('上传超时（600秒）')
+    except Exception as e:
+        log(f'[ERROR] oss_upload 失败: {e}')
+        log_to_file(f'[ERROR] oss_upload 失败: {e}')
+        raise
 
 
 # ── LLM 工具 ─────────────────────────────────────────────────────────────────
 def generate_summary(srt_path):
     """用 LLM 为 SRT 字幕生成 2-3 句话摘要"""
     from openai import OpenAI
-    with open(srt_path, 'r', encoding='utf-8') as f:
-        srt_content = f.read()
+    log(f'[START] generate_summary: {srt_path}')
+    log_to_file(f'[START] generate_summary: {srt_path}')
+    start_time = time.time()
+    try:
+        with open(srt_path, 'r', encoding='utf-8') as f:
+            srt_content = f.read()
 
-    # 只取前 4000 字符，避免超 token
-    srt_snippet = srt_content[:4000]
+        # 只取前 4000 字符，避免超 token
+        srt_snippet = srt_content[:4000]
 
-    client = OpenAI(api_key=settings.BAILIAN_API_KEY, base_url='https://coding.dashscope.aliyuncs.com/v1')
-    resp = client.chat.completions.create(
-        model='qwen3.5-plus',
-        messages=[
-            {'role': 'system', 'content': '你是视频内容分析师，请用 2-3 句话概括视频主要内容，语言简洁。'},
-            {'role': 'user', 'content': f'以下是视频字幕，请生成简短摘要：\n\n{srt_snippet}'},
-        ]
-    )
-    return resp.choices[0].message.content.strip()
+        client = OpenAI(api_key=settings.BAILIAN_API_KEY, base_url='https://coding.dashscope.aliyuncs.com/v1')
+        resp = client.chat.completions.create(
+            model='qwen3.5-plus',
+            messages=[
+                {'role': 'system', 'content': '你是视频内容分析师，请用 2-3 句话概括视频主要内容，语言简洁。'},
+                {'role': 'user', 'content': f'以下是视频字幕，请生成简短摘要：\n\n{srt_snippet}'},
+            ],
+            timeout=120
+        )
+        elapsed = time.time() - start_time
+        log(f'[END] generate_summary 完成，耗时 {elapsed:.1f}秒')
+        log_to_file(f'[END] generate_summary 完成，耗时 {elapsed:.1f}秒')
+        return resp.choices[0].message.content.strip()
+    except Exception as e:
+        elapsed = time.time() - start_time
+        log(f'[ERROR] generate_summary 失败，耗时 {elapsed:.1f}秒，错误: {e}')
+        log_to_file(f'[ERROR] generate_summary 失败，耗时 {elapsed:.1f}秒，错误: {e}')
+        raise
 
 
 # ── 子命令实现 ────────────────────────────────────────────────────────────────
@@ -321,10 +392,18 @@ def cmd_start(args):
 
     # Phase1 自动执行（非交互）
     state_dir = os.path.join(STATE_DIR, video_id)
-    log('执行 Phase1（LLM 筛选字幕）...')
+    log('[START] Phase1 执行（LLM 筛选字幕）')
+    log_to_file(f'[START] Phase1 video_id={video_id}')
+    phase1_start = time.time()
     try:
         result1 = run_phase1(local_srt, output_dir=state_dir, interactive=False)
+        elapsed = time.time() - phase1_start
+        log(f'[END] Phase1 完成，耗时 {elapsed:.1f}秒')
+        log_to_file(f'[END] Phase1 完成，耗时 {elapsed:.1f}秒')
     except Exception as e:
+        elapsed = time.time() - phase1_start
+        log(f'[ERROR] Phase1 失败，耗时 {elapsed:.1f}秒，错误: {e}')
+        log_to_file(f'[ERROR] Phase1 失败，耗时 {elapsed:.1f}秒，错误: {e}')
         out({'status': 'error', 'stage': 1, 'message': str(e)})
 
     state['phase'] = 2
@@ -397,7 +476,9 @@ def cmd_phase2(args):
         result1 = f.read()
 
     # Phase2
-    log('执行 Phase2（LLM 脚本重组）...')
+    log('[START] Phase2 执行（LLM 脚本重组）')
+    log_to_file(f'[START] Phase2 video_id={video_id}')
+    phase2_start = time.time()
     try:
         import main as main_module
         if custom_prompt:
@@ -406,7 +487,13 @@ def cmd_phase2(args):
         result2 = run_phase2(result1, output_dir=state_dir, interactive=False)
         if custom_prompt:
             main_module.PHASE2_PROMPT = original_prompt
+        elapsed = time.time() - phase2_start
+        log(f'[END] Phase2 完成，耗时 {elapsed:.1f}秒')
+        log_to_file(f'[END] Phase2 完成，耗时 {elapsed:.1f}秒')
     except Exception as e:
+        elapsed = time.time() - phase2_start
+        log(f'[ERROR] Phase2 失败，耗时 {elapsed:.1f}秒，错误: {e}')
+        log_to_file(f'[ERROR] Phase2 失败，耗时 {elapsed:.1f}秒，错误: {e}')
         out({'status': 'error', 'stage': 2, 'message': str(e)})
 
     # Phase3：清除旧 intervals 缓存
@@ -414,15 +501,24 @@ def cmd_phase2(args):
     if os.path.exists(intervals_path):
         os.remove(intervals_path)
 
-    log('执行 Phase3（AI 字幕时间轴匹配）...')
+    log('[START] Phase3 执行（AI 字幕时间轴匹配）')
+    log_to_file(f'[START] Phase3 video_id={video_id}')
+    phase3_start = time.time()
     try:
         keep_intervals = run_phase3(state['srt_path'], result2, output_dir=state_dir)
+        elapsed = time.time() - phase3_start
+        log(f'[END] Phase3 完成，耗时 {elapsed:.1f}秒，匹配 {len(keep_intervals) if keep_intervals else 0} 个片段')
+        log_to_file(f'[END] Phase3 完成，耗时 {elapsed:.1f}秒，匹配 {len(keep_intervals) if keep_intervals else 0} 个片段')
     except Exception as e:
+        elapsed = time.time() - phase3_start
+        log(f'[ERROR] Phase3 失败，耗时 {elapsed:.1f}秒，错误: {e}')
+        log_to_file(f'[ERROR] Phase3 失败，耗时 {elapsed:.1f}秒，错误: {e}')
         # Phase3 异常：恢复 step2 备份（仅自定义 prompt 场景）
         if step2_backup is not None:
             with open(step2_path, 'w', encoding='utf-8') as f:
                 f.write(step2_backup)
             log('Phase3 异常，已恢复 step2 缓存')
+            log_to_file('Phase3 异常，已恢复 step2 缓存')
         out({'status': 'error', 'stage': 3, 'message': str(e)})
 
     if not keep_intervals:
@@ -477,10 +573,19 @@ def cmd_generate(args):
         keep_intervals = json.load(f)
 
     # Phase4：生成视频
+    log('[START] Phase4 执行（ffmpeg 剪辑）')
+    log_to_file(f'[START] Phase4 video_id={video_id}，片段数={len(keep_intervals)}')
+    phase4_start = time.time()
     log(f'执行 Phase4（ffmpeg 剪辑 {len(keep_intervals)} 个片段）...')
     try:
         output_path = run_phase4(state['video_path'], keep_intervals, video_id)
+        elapsed = time.time() - phase4_start
+        log(f'[END] Phase4 视频生成完成，耗时 {elapsed:.1f}秒')
+        log_to_file(f'[END] Phase4 视频生成完成，耗时 {elapsed:.1f}秒')
     except Exception as e:
+        elapsed = time.time() - phase4_start
+        log(f'[ERROR] Phase4 失败，耗时 {elapsed:.1f}秒，错误: {e}')
+        log_to_file(f'[ERROR] Phase4 失败，耗时 {elapsed:.1f}秒，错误: {e}')
         out({'status': 'error', 'stage': 4, 'message': str(e)})
 
     if not output_path or not os.path.exists(output_path):
@@ -515,6 +620,12 @@ def cmd_generate(args):
 
 # ── 主入口 ────────────────────────────────────────────────────────────────────
 def main():
+    # 初始化日志文件
+    log_to_file('=' * 50)
+    log('[START] skill.py 进程启动')
+    log(f'[CMD] {" ".join(sys.argv)}')
+    log_to_file(f'[CMD] {" ".join(sys.argv)}')
+
     parser = argparse.ArgumentParser(
         description='sp_video 技能 — OpenClaw 调用接口',
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -543,6 +654,9 @@ def main():
     p_gen.add_argument('--video_id', required=True, help='视频编号')
 
     args = parser.parse_args()
+
+    log(f'[DISPATCH] 命令: {args.cmd}, video_id: {getattr(args, "video_id", "N/A")}')
+    log_to_file(f'[DISPATCH] 命令: {args.cmd}, video_id: {getattr(args, "video_id", "N/A")}')
 
     if args.cmd == 'list':
         cmd_list(args)

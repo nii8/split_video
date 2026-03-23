@@ -19,18 +19,21 @@ def ask_ai(ask, mod, json_format=False):
         client = OpenAI(
             api_key=bailian_api_key,
             base_url="https://coding.dashscope.aliyuncs.com/v1",
+            timeout=900,  # 15分钟超时
         )
     elif mod == 'deepseek-r1-70b':
         model_name = 'deepseek-r1-distill-llama-70b'
         client = OpenAI(
             api_key=bailian_api_key,
             base_url="https://coding.dashscope.aliyuncs.com/v1",
+            timeout=900,  # 15分钟超时
         )
     elif mod == 'deepseek-r1':
         model_name = 'deepseek-r1-0528'
         client = OpenAI(
             api_key=bailian_api_key,
             base_url="https://coding.dashscope.aliyuncs.com/v1",
+            timeout=900,  # 15分钟超时
         )
     elif mod == 'deepseek':
         model_name = 'deepseek-chat'
@@ -38,6 +41,7 @@ def ask_ai(ask, mod, json_format=False):
         client = OpenAI(
             api_key=deepseek_api_key,
             base_url=url,
+            timeout=900,  # 15分钟超时
         )
     try:
 

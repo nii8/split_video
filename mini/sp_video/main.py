@@ -101,7 +101,12 @@ def edit_multiline(default):
 
 
 def call_llm_stream(prompt):
-    client = OpenAI(api_key=settings.BAILIAN_API_KEY, base_url='https://coding.dashscope.aliyuncs.com/v1')
+    from openai import OpenAI
+    client = OpenAI(
+        api_key=settings.BAILIAN_API_KEY,
+        base_url='https://coding.dashscope.aliyuncs.com/v1',
+        timeout=900  # 15分钟超时
+    )
     response = client.chat.completions.create(
         model='qwen3.5-plus',
         messages=[
