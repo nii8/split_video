@@ -159,9 +159,9 @@ def generate_summary(srt_path):
     # 只取前 4000 字符，避免超 token
     srt_snippet = srt_content[:4000]
 
-    client = OpenAI(api_key=settings.DEEPSEEK_API_KEY, base_url='https://api.deepseek.com')
+    client = OpenAI(api_key=settings.BAILIAN_API_KEY, base_url='https://coding.dashscope.aliyuncs.com/v1')
     resp = client.chat.completions.create(
-        model='deepseek-chat',
+        model='qwen3.5-plus',
         messages=[
             {'role': 'system', 'content': '你是视频内容分析师，请用 2-3 句话概括视频主要内容，语言简洁。'},
             {'role': 'user', 'content': f'以下是视频字幕，请生成简短摘要：\n\n{srt_snippet}'},

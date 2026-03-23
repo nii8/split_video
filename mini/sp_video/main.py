@@ -101,9 +101,9 @@ def edit_multiline(default):
 
 
 def call_llm_stream(prompt):
-    client = OpenAI(api_key=settings.DEEPSEEK_API_KEY, base_url='https://api.deepseek.com')
+    client = OpenAI(api_key=settings.BAILIAN_API_KEY, base_url='https://coding.dashscope.aliyuncs.com/v1')
     response = client.chat.completions.create(
-        model='deepseek-chat',
+        model='qwen3.5-plus',
         messages=[
             {'role': 'system', 'content': 'You are a senior short video copywriter well-versed in the dissemination patterns of the TikTok platform.'},
             {'role': 'user', 'content': prompt}

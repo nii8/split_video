@@ -14,17 +14,23 @@ def ask_ai(ask, mod, json_format=False):
 
     client, model_name = None, None
     # 模型列表：https://help.aliyun.com/zh/model-studio/getting-started/models
-    if mod == 'deepseek-r1-70b':
+    if mod == 'qwen':
+        model_name = 'qwen3.5-plus'
+        client = OpenAI(
+            api_key=bailian_api_key,
+            base_url="https://coding.dashscope.aliyuncs.com/v1",
+        )
+    elif mod == 'deepseek-r1-70b':
         model_name = 'deepseek-r1-distill-llama-70b'
         client = OpenAI(
             api_key=bailian_api_key,
-            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            base_url="https://coding.dashscope.aliyuncs.com/v1",
         )
     elif mod == 'deepseek-r1':
         model_name = 'deepseek-r1-0528'
         client = OpenAI(
             api_key=bailian_api_key,
-            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            base_url="https://coding.dashscope.aliyuncs.com/v1",
         )
     elif mod == 'deepseek':
         model_name = 'deepseek-chat'

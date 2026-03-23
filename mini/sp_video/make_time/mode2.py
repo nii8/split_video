@@ -5,7 +5,7 @@ from .interval import merge_intervals, get_start_end_t_id_list
 from .ai_caller import call_ai_match, find_intervals_by_ai, save_result_to_json
 from .prompts import build_match_subtitle_prompt
 
-glo_ask_modal_name = 'deepseek'
+glo_ask_modal_name = 'qwen'
 glo_part_list = ["观点：", "解释：", "故事：", "出路："]
 
 
