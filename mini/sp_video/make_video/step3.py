@@ -71,30 +71,42 @@ def float_to_time_str(seconds_float):
 
 
 def cut_and_merge_video_img(video_file, user_stamp, keep_intervals, video_id):
+    """
+    切割并合并视频片段。
+    
+    注意：ffmpeg concat demuxer 不支持 inpoint/outpoint 参数，
+    所以先用 -ss 和 -to 切割每个片段，再合并。
+    """
     output_video = f"{video_file.replace('.mp4', '')}_{user_stamp}.mp4"
-    temp_file = f"temp_{video_id}.mp4"
+    temp_files = []
     clip_list_file = f"clip_list_{video_id}.txt"
-
+    
     try:
-        cmd_copy = [
-            'ffmpeg',
-            '-i', video_file,
-            '-c:v', 'copy',
-            '-c:a', 'copy',
-            temp_file
-        ]
-        subprocess.run(cmd_copy, check=True)
-
+        # Step 1: 用 -ss 和 -t 直接切割每个片段
+        # 注意：-ss 必须放在 -i 前面，-t 是持续时间（不是结束时间点）
+        for i, (start, end) in enumerate(keep_intervals):
+            temp_file = f"./temp_video_{video_id}_{i}.mp4"
+            temp_files.append(temp_file)
+            duration = end - start  # 计算持续时间
+            start_time = float_to_time_str(start)
+            print(f'interval={start} -> {end} (duration={duration:.3f}s)')
+            cmd = [
+                'ffmpeg',
+                '-ss', start_time,
+                '-i', video_file,
+                '-t', str(duration),
+                '-c:v', 'copy',
+                '-c:a', 'copy',
+                '-y',
+                temp_file
+            ]
+            subprocess.run(cmd, check=True, stderr=subprocess.DEVNULL)
+        
+        # Step 2: 用 concat demuxer 合并所有片段（不需要 inpoint/outpoint）
         with open(clip_list_file, 'w') as f:
-            for interval in keep_intervals:
-                print(f'interval={interval}')
-                start, end = interval
-                start_time = float_to_time_str(start)
-                end_time = float_to_time_str(end)
-                f.write(f"file '{temp_file}'\n")
-                f.write(f"inpoint {start_time}\n")
-                f.write(f"outpoint {end_time}\n")
-
+            for file in temp_files:
+                f.write(f"file '{os.path.abspath(file)}'\n")
+        
         cmd_concat = [
             'ffmpeg',
             '-f', 'concat',
@@ -102,16 +114,19 @@ def cut_and_merge_video_img(video_file, user_stamp, keep_intervals, video_id):
             '-i', clip_list_file,
             '-c:v', 'copy',
             '-c:a', 'copy',
+            '-y',
             output_video
         ]
-        subprocess.run(cmd_concat, check=True)
-
+        subprocess.run(cmd_concat, check=True, stderr=subprocess.DEVNULL)
+        
     except subprocess.CalledProcessError as e:
-        print(f"视频处理过程中出错: {e}")
+        print(f"视频处理过程中出错：{e}")
         raise
     finally:
-        if os.path.exists(temp_file):
-            os.remove(temp_file)
+        # 清理临时文件
+        for file in temp_files:
+            if os.path.exists(file):
+                os.remove(file)
         if os.path.exists(clip_list_file):
             os.remove(clip_list_file)
 
