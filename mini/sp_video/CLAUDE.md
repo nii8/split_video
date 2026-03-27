@@ -92,12 +92,14 @@ sp_video/
 │   ├── interval.py      # 时间区间合并工具
 │   └── time_utils.py    # 时间格式解析工具
 ├── make_video/
+│   ├── filter_builder.py # build_filter_complex()：生成 FFmpeg filter_complex 字符串
 │   └── step3.py         # 对外接口：cut_video_main(keep_intervals, video_path, video_id, user_id)
-│                        # 内部：ffmpeg 切片 → 合并视频 + 音频
+│                        # 内部：filter_complex 单次调用完成剪辑
 ├── tests/               # 单元测试（pytest）
 │   ├── test_interval.py
 │   ├── test_time_utils.py
-│   └── test_mode2_parse.py
+│   ├── test_mode2_parse.py
+│   └── test_filter_complex.py
 └── data/
     ├── config/
     │   └── config.yaml  # BAILIAN_API_KEY 等敏感配置（不入库）
@@ -125,10 +127,11 @@ get_intervals_by_yuanwen()
 merge_intervals()               → keep_intervals: [[(start,end), text], ...]
 
 cut_video_main()
-  ├─► extract_audio()            → .wav（已有则跳过）
-  ├─► cut_and_merge_audio()      → 临时片段 → concat → 输出 .wav
-  └─► cut_and_merge_video_img()  → inpoint/outpoint concat → 输出 .mp4
-      └─► ffmpeg merge           → 最终 output.mp4
+  ├─► 过滤无效片段 (None, None)
+  ├─► srt_time_to_seconds()      → 转换时间格式为秒
+  └─► cut_video_filter_complex() → 单次 ffmpeg filter_complex 调用
+      ├─► build_filter_complex() → 生成 trim/atrim + concat filter
+      └─► ffmpeg -filter_complex → 最终 output.mp4（音画天然同步）
 ```
 
 ---
