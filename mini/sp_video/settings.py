@@ -43,3 +43,10 @@ _yaml = _load_yaml()
 
 DEEPSEEK_API_KEY = _yaml.get("DEEPSEEK_API_KEY", "")
 BAILIAN_API_KEY = _yaml.get("BAILIAN_API_KEY", "")
+
+
+BATCH_PHASE1_COUNT = 20
+BATCH_PHASE2_COUNT = 100
+BATCH_SCORE_THRESHOLD = 7.0
+BATCH_RESULTS_DIR = "./data/batch_results"
+BATCH_LOG_FILE = "./data/batch_log.jsonl"
