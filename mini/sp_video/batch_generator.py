@@ -1,4 +1,4 @@
-﻿import os
+import os
 import sys
 import json
 import time
@@ -8,6 +8,13 @@ from batch.phase_runner import run_phase1_loop, run_phase2_loop, run_phase3_loop
 from batch.evaluator import evaluate_quality
 from batch.visual_scorer import enrich_top_interval_candidates_with_visual_score
 from batch.transition_scorer import enrich_candidates_with_transition_score
+from batch.multi_video_selector import build_video_sources, get_main_video
+from batch.video_pool_builder import build_multi_video_pools
+from batch.video_combiner import build_multi_video_candidates
+from batch.multi_video_scorer import (
+    score_multi_video_candidate,
+    merge_multi_video_score,
+)
 from make_video.step3 import cut_video_main
 
 
@@ -25,6 +32,29 @@ def scan_videos(data_dir):
     return videos
 
 
+def scan_multi_video_sources(data_dir):
+    """
+    扫描多视频源，返回视频源列表。
+    格式：[{"video_id": "...", "video_path": "...", "srt_path": "..."}, ...]
+    """
+    sources = []
+    for video_id in os.listdir(data_dir):
+        video_dir = os.path.join(data_dir, video_id)
+        if not os.path.isdir(video_dir):
+            continue
+        srt_path = os.path.join(video_dir, f"{video_id}.srt")
+        mp4_path = os.path.join(video_dir, f"{video_id}.mp4")
+        if os.path.exists(srt_path) and os.path.exists(mp4_path):
+            sources.append(
+                {
+                    "video_id": video_id,
+                    "video_path": mp4_path,
+                    "srt_path": srt_path,
+                }
+            )
+    return sources
+
+
 def process_video(video_id, srt_path, mp4_path, logger):
     """处理单个视频的完整流程"""
     print(f"\n{'=' * 60}", file=sys.stderr)
@@ -35,21 +65,27 @@ def process_video(video_id, srt_path, mp4_path, logger):
 
     # Phase1: 多次字幕筛选
     phase1_dir = os.path.join(base_dir, "phase1")
-    phase1_files = run_phase1_loop(video_id, srt_path, phase1_dir, settings.BATCH_PHASE1_COUNT, logger)
+    phase1_files = run_phase1_loop(
+        video_id, srt_path, phase1_dir, settings.BATCH_PHASE1_COUNT, logger
+    )
     if not phase1_files:
         print(f"[错误] Phase1 全部失败，跳过视频 {video_id}", file=sys.stderr)
         return
 
     # Phase2: 多次脚本生成
     phase2_dir = os.path.join(base_dir, "phase2")
-    phase2_files = run_phase2_loop(video_id, phase1_files, phase2_dir, settings.BATCH_PHASE2_COUNT, logger)
+    phase2_files = run_phase2_loop(
+        video_id, phase1_files, phase2_dir, settings.BATCH_PHASE2_COUNT, logger
+    )
     if not phase2_files:
         print(f"[错误] Phase2 全部失败，跳过视频 {video_id}", file=sys.stderr)
         return
 
     # Phase3: 时间轴匹配
     phase3_dir = os.path.join(base_dir, "phase3")
-    phase3_results = run_phase3_loop(video_id, srt_path, phase2_files, phase3_dir, logger)
+    phase3_results = run_phase3_loop(
+        video_id, srt_path, phase2_files, phase3_dir, logger
+    )
     if not phase3_results:
         print("[警告] Phase3 全部失败，没有有效时间序列", file=sys.stderr)
         return
@@ -65,7 +101,9 @@ def process_video(video_id, srt_path, mp4_path, logger):
         score_path = os.path.join(phase4_dir, f"score_{idx:03d}.json")
         with open(score_path, "w", encoding="utf-8") as f:
             json.dump(score, f, ensure_ascii=False, indent=2)
-        logger.log_phase(video_id, "phase4", idx, duration, "success", total_score=score["total"])
+        logger.log_phase(
+            video_id, "phase4", idx, duration, "success", total_score=score["total"]
+        )
         scored.append((idx, intervals, score))
 
     # 第一阶段新增：
@@ -100,17 +138,183 @@ def process_video(video_id, srt_path, mp4_path, logger):
                 final_path = os.path.join(phase5_dir, f"video_{idx:03d}.mp4")
                 os.rename(output_path, final_path)
                 duration = time.time() - start
-                logger.log_phase(video_id, "phase5", idx, duration, "success", output=final_path)
+                logger.log_phase(
+                    video_id, "phase5", idx, duration, "success", output=final_path
+                )
                 generated.append(final_path)
             except Exception as e:
                 duration = time.time() - start
-                logger.log_phase(video_id, "phase5", idx, duration, "failed", reason=str(e))
+                logger.log_phase(
+                    video_id, "phase5", idx, duration, "failed", reason=str(e)
+                )
 
-    generate_summary(video_id, base_dir, phase1_files, phase2_files, phase3_results, scored, generated)
-    print(f"[完成] 视频 {video_id} 处理完成，生成 {len(generated)} 个视频", file=sys.stderr)
+    generate_summary(
+        video_id,
+        base_dir,
+        phase1_files,
+        phase2_files,
+        phase3_results,
+        scored,
+        generated,
+    )
+    print(
+        f"[完成] 视频 {video_id} 处理完成，生成 {len(generated)} 个视频",
+        file=sys.stderr,
+    )
 
 
-def generate_summary(video_id, base_dir, phase1_files, phase2_files, phase3_results, scored, generated):
+def process_multi_video(videos_data, logger):
+    """
+    处理多视频组合流程（第三阶段最小版）。
+
+    输入：
+    - videos_data: [(video_id, srt_path, mp4_path), ...]
+    - logger: BatchLogger 实例
+
+    流程：
+    1. 构建视频源列表
+    2. 为每个视频跑 phase1-phase3，得到候选片段
+    3. 构建多视频片段池
+    4. 生成多视频组合候选
+    5. 评分并生成视频
+    """
+    print(f"\n{'=' * 60}", file=sys.stderr)
+    print(f"开始多视频组合流程，共 {len(videos_data)} 个视频", file=sys.stderr)
+    print(f"{'=' * 60}", file=sys.stderr)
+
+    video_sources = []
+    for video_id, srt_path, mp4_path in videos_data:
+        video_sources.append(
+            {
+                "video_id": video_id,
+                "video_path": mp4_path,
+                "srt_path": srt_path,
+            }
+        )
+
+    interval_candidates_map = {}
+    score_map = {}
+    main_video_info = {}
+
+    for video_id, srt_path, mp4_path in videos_data:
+        print(f"\n[多视频] 处理视频 {video_id} 的候选片段...", file=sys.stderr)
+
+        base_dir = os.path.join(settings.BATCH_RESULTS_DIR, video_id)
+        phase3_dir = os.path.join(base_dir, "phase3")
+
+        phase3_results = run_phase3_loop(video_id, srt_path, [], phase3_dir, logger)
+
+        if phase3_results:
+            intervals_list = [intervals for idx, intervals in phase3_results]
+            interval_candidates_map[video_id] = intervals_list
+
+            phase4_scores = []
+            for idx, intervals in phase3_results:
+                score = evaluate_quality(mp4_path, intervals)
+                phase4_scores.append(score.get("total", 0))
+            score_map[video_id] = phase4_scores
+
+            main_video_info[video_id] = {
+                "mp4_path": mp4_path,
+                "base_dir": base_dir,
+            }
+            print(f"  - 生成 {len(intervals_list)} 个候选片段", file=sys.stderr)
+        else:
+            print(f"  - 警告：{video_id} 没有有效候选", file=sys.stderr)
+
+    if not interval_candidates_map:
+        print("[错误] 所有视频都没有候选片段，跳过", file=sys.stderr)
+        return
+
+    pools = build_multi_video_pools(video_sources, interval_candidates_map, score_map)
+
+    candidates = build_multi_video_candidates(pools, max_candidates=20)
+    print(f"[多视频] 生成 {len(candidates)} 个组合候选", file=sys.stderr)
+
+    if not candidates:
+        print("[错误] 没有生成有效候选，跳过", file=sys.stderr)
+        return
+
+    scored_candidates = []
+    for candidate in candidates:
+        mv_result = score_multi_video_candidate(candidate)
+        base_score = 7.5
+        for seg in candidate.get("segments", []):
+            if seg.get("base_score"):
+                base_score = seg["base_score"]
+                break
+
+        combined = {
+            "total": base_score,
+            "base_total": base_score,
+        }
+        merged = merge_multi_video_score(combined, mv_result)
+
+        scored_candidates.append(
+            {
+                "candidate": candidate,
+                "score": merged,
+                "multi_video_result": mv_result,
+            }
+        )
+
+    scored_candidates.sort(key=lambda x: x["score"]["total"], reverse=True)
+
+    print(f"[多视频] 最高分：{scored_candidates[0]['score']['total']}", file=sys.stderr)
+
+    top_candidate = scored_candidates[0]
+    candidate = top_candidate["candidate"]
+    score = top_candidate["score"]
+
+    print(f"\n[多视频] 准备生成最终视频...", file=sys.stderr)
+
+    multi_dir = os.path.join(settings.BATCH_RESULTS_DIR, "multi_video")
+    os.makedirs(multi_dir, exist_ok=True)
+
+    main_video_id = candidate.get("main_video_id")
+    if main_video_id and main_video_id in main_video_info:
+        main_mp4_path = main_video_info[main_video_id]["mp4_path"]
+
+        try:
+            intervals = candidate["segments"]
+            output_path = cut_video_main(intervals, main_mp4_path, "multi", "batch")
+            final_path = os.path.join(
+                multi_dir, f"video_{candidate['candidate_id']}.mp4"
+            )
+            if os.path.exists(final_path):
+                os.remove(final_path)
+            os.rename(output_path, final_path)
+            print(f"[完成] 多视频生成：{final_path}", file=sys.stderr)
+
+            summary = {
+                "candidate_id": candidate["candidate_id"],
+                "total_score": score["total"],
+                "base_total": score["base_total"],
+                "multi_video_score": score.get("multi_video"),
+                "segments": candidate["segments"],
+                "main_video_id": candidate["main_video_id"],
+                "sub_video_id": candidate["sub_video_id"],
+                "output_path": final_path,
+            }
+            summary_path = os.path.join(
+                multi_dir, f"summary_{candidate['candidate_id']}.json"
+            )
+            with open(summary_path, "w", encoding="utf-8") as f:
+                json.dump(summary, f, ensure_ascii=False, indent=2)
+
+        except Exception as e:
+            print(f"[错误] 生成多视频失败：{e}", file=sys.stderr)
+    else:
+        print(f"[错误] 找不到主视频 {main_video_id} 的路径", file=sys.stderr)
+
+    print(f"\n{'=' * 60}", file=sys.stderr)
+    print("多视频组合流程完成", file=sys.stderr)
+    print(f"{'=' * 60}", file=sys.stderr)
+
+
+def generate_summary(
+    video_id, base_dir, phase1_files, phase2_files, phase3_results, scored, generated
+):
     """生成统计报告"""
     top_scores = sorted(scored, key=lambda x: x[2]["total"], reverse=True)[:5]
     summary = {
@@ -132,7 +336,7 @@ def generate_summary(video_id, base_dir, phase1_files, phase2_files, phase3_resu
                 "transition_natural": score.get("transition_natural"),
             }
             for idx, _, score in top_scores
-        ]
+        ],
     }
     summary_path = os.path.join(base_dir, "summary.json")
     with open(summary_path, "w", encoding="utf-8") as f:
@@ -144,12 +348,19 @@ def main():
     videos = scan_videos(settings.DATA_DIR)
     print(f"扫描到 {len(videos)} 个视频", file=sys.stderr)
 
-    for video_id, srt_path, mp4_path in videos:
-        try:
-            process_video(video_id, srt_path, mp4_path, logger)
-        except Exception as e:
-            print(f"[错误] 处理视频 {video_id} 时出错: {e}", file=sys.stderr)
-            continue
+    if getattr(settings, "BATCH_MULTI_VIDEO_ENABLE", False) and len(videos) >= 2:
+        print(
+            f"\n[多视频模式] 检测到 {len(videos)} 个视频，启动多视频组合流程",
+            file=sys.stderr,
+        )
+        process_multi_video(videos, logger)
+    else:
+        for video_id, srt_path, mp4_path in videos:
+            try:
+                process_video(video_id, srt_path, mp4_path, logger)
+            except Exception as e:
+                print(f"[错误] 处理视频 {video_id} 时出错：{e}", file=sys.stderr)
+                continue
 
     print(f"\n{'=' * 60}", file=sys.stderr)
     print("批量生成完成", file=sys.stderr)
