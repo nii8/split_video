@@ -6,3 +6,8 @@ __pycache__/
 
 # 閰嶇疆鏂囦欢锛堟晱鎰燂級
 data/config/config.yaml
+
+# 本地会话/执行器临时文件
+.ccb/
+opencode.json
+
