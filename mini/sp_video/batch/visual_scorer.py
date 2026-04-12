@@ -40,15 +40,22 @@ def score_candidate_visual(video_id, candidate_id, video_path, intervals, work_d
     )
 
     windows = []
+    frame_sampling_duration_sec = round(sum(item.get("ffmpeg_duration_sec", 0) for item in grouped_frames), 2)
+    grid_duration_sec = 0.0
+    llm_duration_sec = 0.0
     for item in grouped_frames:
         if not item["image_paths"]:
             continue
         grid_path = os.path.join(grids_dir, f"{candidate_id}_interval_{item['interval_index']:03d}.jpg")
+        grid_start = time.time()
         make_grid_image(item["image_paths"], grid_path)
+        grid_duration_sec += time.time() - grid_start
         # 第一阶段先保留两种模式：
         # 1. fake：本地没模型时先打通流程
         # 2. llm：真实多模态评分
+        llm_start = time.time()
         score_result = call_visual_llm(grid_path) if use_llm else fake_visual_score(item)
+        llm_duration_sec += time.time() - llm_start
         score_result["interval_index"] = item["interval_index"]
         score_result["grid_path"] = grid_path
         windows.append(score_result)
@@ -62,6 +69,9 @@ def score_candidate_visual(video_id, candidate_id, video_path, intervals, work_d
         "video_id": video_id,
         "candidate_id": candidate_id,
         "visual_score": visual_score,
+        "frame_sampling_duration_sec": frame_sampling_duration_sec,
+        "grid_duration_sec": round(grid_duration_sec, 2),
+        "llm_duration_sec": round(llm_duration_sec, 2),
         "windows": windows,
     }
 
@@ -236,6 +246,9 @@ def enrich_top_interval_candidates_with_visual_score(video_id, video_path, score
                 duration,
                 "success",
                 visual_score=visual_result["visual_score"],
+                frame_sampling_duration_sec=visual_result["frame_sampling_duration_sec"],
+                grid_duration_sec=visual_result["grid_duration_sec"],
+                llm_duration_sec=visual_result["llm_duration_sec"],
             )
 
     merged = []

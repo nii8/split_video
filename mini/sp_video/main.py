@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import argparse
+import time
 from openai import OpenAI
 import settings
 from make_time.step2 import get_keep_intervals
@@ -108,6 +109,7 @@ def call_llm_stream(prompt):
         base_url="https://coding.dashscope.aliyuncs.com/v1",
         timeout=900,
     )
+    start = time.time()
     response = client.chat.completions.create(
         model="qwen3.5-plus",
         messages=[
@@ -126,6 +128,7 @@ def call_llm_stream(prompt):
             print(word, end="", flush=True)
             full += word
     print()
+    print(f"[LLM] stream call duration: {round(time.time() - start, 2)} s")
     return full
 
 
@@ -137,6 +140,7 @@ def call_llm_batch(prompt):
         base_url="https://coding.dashscope.aliyuncs.com/v1",
         timeout=900,
     )
+    start = time.time()
     response = client.chat.completions.create(
         model="qwen3.5-plus",
         messages=[
@@ -148,6 +152,7 @@ def call_llm_batch(prompt):
         ],
         stream=False,
     )
+    print(f"[LLM] batch call duration: {round(time.time() - start, 2)} s")
     return response.choices[0].message.content
 
 
@@ -159,6 +164,7 @@ def run_phase1(srt_path, output_dir=None, interactive=True):
     print("\n" + "=" * 60)
     print("[第一阶段] LLM 筛选有价值字幕")
     print("=" * 60)
+    phase_start = time.time()
 
     # 若 output_dir 下已有 step1.txt，直接复用
     step1_path = os.path.join(output_dir, "step1.txt") if output_dir else None
@@ -183,6 +189,7 @@ def run_phase1(srt_path, output_dir=None, interactive=True):
         with open(step1_path, "w", encoding="utf-8") as f:
             f.write(result)
         print(f"[Stage 1] 已保存: {step1_path}")
+    print(f"[Stage 1] duration: {round(time.time() - phase_start, 2)} s")
 
     return result
 
@@ -191,6 +198,7 @@ def run_phase2(phase1_result, output_dir=None, interactive=True):
     print("\n" + "=" * 60)
     print("[第二阶段] LLM 重组脚本")
     print("=" * 60)
+    phase_start = time.time()
 
     step2_path = os.path.join(output_dir, "step2.txt") if output_dir else None
     if step2_path and os.path.exists(step2_path):
@@ -212,6 +220,7 @@ def run_phase2(phase1_result, output_dir=None, interactive=True):
         with open(step2_path, "w", encoding="utf-8") as f:
             f.write(result)
         print(f"[Stage 2] 已保存: {step2_path}")
+    print(f"[Stage 2] duration: {round(time.time() - phase_start, 2)} s")
 
     return result
 
@@ -220,6 +229,7 @@ def run_phase3(srt_path, script, output_dir=None):
     print("\n" + "=" * 60)
     print("[第三阶段] 生成时间序列（AI 字幕匹配）")
     print("=" * 60)
+    phase_start = time.time()
 
     intervals_path = os.path.join(output_dir, "intervals.json") if output_dir else None
     if intervals_path and os.path.exists(intervals_path):
@@ -242,6 +252,7 @@ def run_phase3(srt_path, script, output_dir=None):
         with open(intervals_path, "w", encoding="utf-8") as f:
             json.dump(valid, f, ensure_ascii=False, indent=2)
         print(f"[Stage 3] 已保存: {intervals_path}")
+    print(f"[Stage 3] duration: {round(time.time() - phase_start, 2)} s")
 
     return valid
 
@@ -250,9 +261,11 @@ def run_phase4(video_path, keep_intervals, video_id):
     print("\n" + "=" * 60)
     print("[第四阶段] 生成视频")
     print("=" * 60)
+    phase_start = time.time()
     print(f"[Stage 4] 开始剪辑，共 {len(keep_intervals)} 个片段 ...")
     output_path = cut_video_main(keep_intervals, video_path, video_id, "cli")
     print(f"[Stage 4] 视频已生成: {output_path}")
+    print(f"[Stage 4] duration: {round(time.time() - phase_start, 2)} s")
     return output_path
 
 

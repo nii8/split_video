@@ -70,8 +70,12 @@ def cut_video_filter_complex(input_path, output_path, segments):
             f"[FFMPEG] Executing: {' '.join(cmd[:5])}... (truncated for readability)",
             file=sys.stderr,
         )
+        start = time.time()
         subprocess.run(cmd, check=True)
+        duration = time.time() - start
         print(f"[FFMPEG] Completed successfully: {output_path}", file=sys.stderr)
+        print(f"[FFMPEG] Duration: {round(duration, 2)} s", file=sys.stderr)
+        return round(duration, 2)
     except subprocess.CalledProcessError as e:
         print(f"[FFMPEG] Error occurred: {e}", file=sys.stderr)
         raise
@@ -125,11 +129,11 @@ def cut_video_main(keep_intervals, video_path, video_id, user_id):
     output_path = os.path.join(output_dir, "output.mp4")
 
     # Call the new filter complex function
-    cut_video_filter_complex(video_path, output_path, segments)
+    ffmpeg_duration_sec = cut_video_filter_complex(video_path, output_path, segments)
 
     t2 = time.time()
     print(
-        f"[CUT_VIDEO_MAIN] Completed in {round(t2 - t1, 2)} s, output: {output_path}",
+        f"[CUT_VIDEO_MAIN] Completed in {round(t2 - t1, 2)} s, ffmpeg={ffmpeg_duration_sec}s, output: {output_path}",
         file=sys.stderr,
     )
     return output_path

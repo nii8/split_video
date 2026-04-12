@@ -26,3 +26,15 @@ class BatchLogger:
         with open(self.log_file, "a", encoding="utf-8") as f:
             f.write(line + "\n")
         return entry
+
+    def log_event(self, event, **kwargs):
+        entry = {
+            "ts": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+            "event": event,
+        }
+        entry.update(kwargs)
+        line = json.dumps(entry, ensure_ascii=False)
+        print(line, file=sys.stderr)
+        with open(self.log_file, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+        return entry

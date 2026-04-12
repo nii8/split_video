@@ -7,6 +7,7 @@ multi_video_builder.py - 多视频合并构建器
 import os
 import subprocess
 import sys
+import time
 
 
 def build_multi_video_filter_complex(sources, segments):
@@ -153,8 +154,11 @@ def generate_multi_video(sources, segments, output_dir, candidate_id):
 
     try:
         # 执行FFmpeg命令
+        start = time.time()
         result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        duration = time.time() - start
         print(f"[MULTI-VIDEO] Successfully created: {output_path}", file=sys.stderr)
+        print(f"[MULTI-VIDEO] FFmpeg duration: {round(duration, 2)} s", file=sys.stderr)
         return output_path
     except subprocess.CalledProcessError as e:
         print(f"[MULTI-VIDEO] Error occurred: {e}", file=sys.stderr)

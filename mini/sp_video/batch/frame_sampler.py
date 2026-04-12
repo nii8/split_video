@@ -10,6 +10,7 @@
 
 import os
 import subprocess
+import time
 
 
 def srt_time_to_seconds(time_str):
@@ -43,6 +44,7 @@ def sample_frames_for_interval(video_path, start_sec, end_sec, sample_every_sec=
 
     timestamps = build_sample_timestamps(start_sec, end_sec, sample_every_sec, max_frames_per_interval)
     image_paths = []
+    ffmpeg_duration_sec = 0.0
 
     for i, ts in enumerate(timestamps):
         output_path = os.path.join(output_dir, f"frame_{i + 1:03d}.jpg")
@@ -57,11 +59,16 @@ def sample_frames_for_interval(video_path, start_sec, end_sec, sample_every_sec=
             "-y",
             output_path,
         ]
+        start = time.time()
         subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        ffmpeg_duration_sec += time.time() - start
         if os.path.exists(output_path):
             image_paths.append(output_path)
 
-    return image_paths
+    return {
+        "image_paths": image_paths,
+        "ffmpeg_duration_sec": round(ffmpeg_duration_sec, 2),
+    }
 
 
 def sample_frames_for_intervals(video_path, intervals, output_dir=None, sample_every_sec=2, max_frames_per_interval=9):
@@ -79,7 +86,7 @@ def sample_frames_for_intervals(video_path, intervals, output_dir=None, sample_e
         interval_dir = os.path.join(output_dir, f"interval_{idx + 1:03d}")
         start_sec = srt_time_to_seconds(start_time)
         end_sec = srt_time_to_seconds(end_time)
-        image_paths = sample_frames_for_interval(
+        sample_result = sample_frames_for_interval(
             video_path,
             start_sec,
             end_sec,
@@ -91,7 +98,8 @@ def sample_frames_for_intervals(video_path, intervals, output_dir=None, sample_e
             "interval_index": idx + 1,
             "start_sec": start_sec,
             "end_sec": end_sec,
-            "image_paths": image_paths,
+            "image_paths": sample_result["image_paths"],
+            "ffmpeg_duration_sec": sample_result["ffmpeg_duration_sec"],
         })
 
     return grouped
