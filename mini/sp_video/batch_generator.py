@@ -31,30 +31,6 @@ def scan_videos(data_dir):
             videos.append((video_id, srt_path, mp4_path))
     return videos
 
-
-def scan_multi_video_sources(data_dir):
-    """
-    扫描多视频源，返回视频源列表。
-    格式：[{"video_id": "...", "video_path": "...", "srt_path": "..."}, ...]
-    """
-    sources = []
-    for video_id in os.listdir(data_dir):
-        video_dir = os.path.join(data_dir, video_id)
-        if not os.path.isdir(video_dir):
-            continue
-        srt_path = os.path.join(video_dir, f"{video_id}.srt")
-        mp4_path = os.path.join(video_dir, f"{video_id}.mp4")
-        if os.path.exists(srt_path) and os.path.exists(mp4_path):
-            sources.append(
-                {
-                    "video_id": video_id,
-                    "video_path": mp4_path,
-                    "srt_path": srt_path,
-                }
-            )
-    return sources
-
-
 def process_video(video_id, srt_path, mp4_path, logger):
     """处理单个视频的完整流程"""
     print(f"\n{'=' * 60}", file=sys.stderr)
