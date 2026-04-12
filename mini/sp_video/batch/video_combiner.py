@@ -1,10 +1,11 @@
 """
 video_combiner.py - 多视频组合逻辑
 
-第三阶段最小版：只支持最简单的双视频组合。
+第三阶段最小版：优先生成时长更完整的双视频组合。
 规则：
-- 主视频 2 段 + 副视频 1 段
-- 或 主视频 1 段 + 副视频 1 段
+- 主视频优先取 2-3 段
+- 副视频优先取 1-2 段
+- 保持组合顺序，不按不同源视频原始时间重新排序
 """
 
 
@@ -47,8 +48,6 @@ def build_two_video_candidate(main_pool, sub_pool, max_candidates=20):
         sub_segments, key=lambda x: x.get("base_score") or 0, reverse=True
     )
 
-    max_main_per_candidate = 2
-
     for main_seg in main_segments_sorted[:10]:
         for sub_seg in sub_segments_sorted[:5]:
             if candidate_id >= max_candidates:
@@ -58,19 +57,37 @@ def build_two_video_candidate(main_pool, sub_pool, max_candidates=20):
 
             main_parts = [main_seg]
             if main_seg.get("base_score") and main_seg.get("base_score") >= 7.0:
-                for second_seg in main_segments_sorted[:5]:
-                    if second_seg["start"] >= main_seg["end"]:
+                for second_seg in main_segments_sorted[:8]:
+                    if second_seg is main_seg:
+                        continue
+                    if second_seg["start"] >= main_parts[-1]["end"]:
                         main_parts.append(second_seg)
                         break
 
+                if len(main_parts) >= 2:
+                    for third_seg in main_segments_sorted[:10]:
+                        if third_seg in main_parts:
+                            continue
+                        if third_seg["start"] >= main_parts[-1]["end"]:
+                            main_parts.append(third_seg)
+                            break
+
+            sub_parts = [sub_seg]
+            for second_sub_seg in sub_segments_sorted[:5]:
+                if second_sub_seg is sub_seg:
+                    continue
+                if second_sub_seg["start"] >= sub_parts[-1]["end"]:
+                    sub_parts.append(second_sub_seg)
+                    break
+
             # 跨视频时不按各自源时间戳重排，保持组合顺序即可。
-            all_segments = main_parts + [sub_seg]
+            all_segments = main_parts + sub_parts
 
             candidate = {
                 "candidate_id": f"C{candidate_id:03d}",
                 "segments": all_segments,
                 "main_segments": main_parts,
-                "sub_segments": [sub_seg],
+                "sub_segments": sub_parts,
                 "main_video_id": main_pool["video_id"],
                 "sub_video_id": sub_pool["video_id"],
             }
