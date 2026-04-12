@@ -59,7 +59,7 @@ BATCH_VISUAL_USE_LLM = False
 
 BATCH_TRANSITION_ENABLE = False
 
-BATCH_MULTI_VIDEO_ENABLE = False
+BATCH_MULTI_VIDEO_ENABLE = True
 
 # 测试模式：降低批量参数用于快速验证
 # 注意：生产环境请保持 False，测试时临时改为 True

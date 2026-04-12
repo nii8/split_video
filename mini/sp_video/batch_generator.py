@@ -16,6 +16,7 @@ from batch.multi_video_scorer import (
     merge_multi_video_score,
 )
 from make_video.step3 import cut_video_main
+from make_video.multi_video_builder import generate_multi_video
 
 
 def scan_videos(data_dir):
@@ -341,12 +342,68 @@ def process_multi_video(videos_data, logger):
 
         print(f"[多视频] summary 已写出：{summary_path}", file=sys.stderr)
 
-        # 保留原结构，当前版本不生成实际视频文件。
-        # main_video_id = candidate.get("main_video_id")
-        # output_path = cut_video_main(...)
+        # 生成高分多视频候选的实际视频文件
+        video_generation_dir = os.path.join(multi_dir, "generated_videos")
+        os.makedirs(video_generation_dir, exist_ok=True)
+
+        # 准备视频源信息
+        video_sources_map = {}
+        for video_id, srt_path, mp4_path in videos_data:
+            video_sources_map[video_id] = {
+                "video_id": video_id,
+                "video_path": mp4_path
+            }
+
+        sources_list = [video_sources_map[vid] for vid in source_videos if vid in video_sources_map]
+
+        # 为top N个候选生成实际视频（避免生成过多文件）
+        top_n_generate = 5  # 可以根据设置调整
+        generated_videos = []
+
+        for i, item in enumerate(scored_candidates[:top_n_generate]):
+            candidate = item["candidate"]
+            score = item["score"]
+
+            if score["total"] >= settings.BATCH_SCORE_THRESHOLD:
+                candidate_id = candidate["candidate_id"]
+                segments = candidate.get("segments", [])
+
+                if not segments:
+                    continue
+
+                try:
+                    print(f"[多视频] 正在生成候选 {candidate_id} (分数: {score['total']})...", file=sys.stderr)
+
+                    # 生成多视频文件
+                    output_path = generate_multi_video(
+                        sources_list,
+                        segments,
+                        video_generation_dir,
+                        candidate_id
+                    )
+
+                    generated_videos.append({
+                        "candidate_id": candidate_id,
+                        "output_path": output_path,
+                        "score": score["total"],
+                        "segment_count": len(segments)
+                    })
+
+                    print(f"[多视频] 已生成: {output_path}", file=sys.stderr)
+                except Exception as e:
+                    print(f"[多视频] 生成候选 {candidate_id} 失败: {e}", file=sys.stderr)
+                    continue
+
+        # 更新 summary.json，添加生成的视频信息
+        summary["generated_videos"] = generated_videos
+        summary["videos_generated"] = len(generated_videos)
+
+        # 重新写入更新后的 summary
+        with open(summary_path, "w", encoding="utf-8") as f:
+            json.dump(summary, f, ensure_ascii=False, indent=2)
 
         print(f"\n{'=' * 60}", file=sys.stderr)
-        print("多视频组合流程完成", file=sys.stderr)
+        print(f"多视频组合流程完成，生成 {len(generated_videos)} 个视频", file=sys.stderr)
         print(f"{'=' * 60}", file=sys.stderr)
     finally:
         settings.BATCH_PHASE1_COUNT = old_phase1_count

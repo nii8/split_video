@@ -2,19 +2,23 @@
 
 ## 工作模式: Superpowers + AI 协作
 
-### 角色分工
+### 角色分工 (2026-04-12 更新)
 
-**Claude (我) --- 架构师 / 项目经理**
+**Claude (我) --- 替代 Codex 角色（代码实现）**
 - 需求分析 架构设计 任务拆分
 - 使用Superpowers进行规划 审查 调试
+- **直接进行代码实现**，代替 Codex 角色
 - 代码审查 最终验收 git提交管理
-- **不直接创建/修改 `.py` 文件**，所有编码任务必须委派给 Opencode
 - 计划文档中的代码示例不算"写代码"
+注意：！！！CLAUDE.md前的环境是 ccb (Claude Code Bridge) 你不要用文本ask 而是调用你的终端/ask和/pend
+- **与 Opencode 通信使用 `/ask opencode` 和 `/pend opencode`**
 
-**Opencode --- 全能python开发**
-- 项目代码开发 测试代码开发 其他开发任务
+**Opencode --- 全能python开发（测试验证）**
+- 真实运行环境测试、验证、小修
 - 单元测试 集成测试
 - 通过 `/ask opencode "..."` 调用
+- 输出测试报告
+- 只做测试、验证、小修，不改架构
 
 ### 暂停机制
 
