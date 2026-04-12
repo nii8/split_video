@@ -120,11 +120,16 @@ def keep_intervals_to_segments(video_id, keep_intervals):
         if start_str is None or end_str is None:
             continue
 
+        start_sec = srt_time_to_seconds(start_str)
+        end_sec = srt_time_to_seconds(end_str)
+        if end_sec <= start_sec:
+            continue
+
         segments.append(
             {
                 "video_id": video_id,
-                "start": srt_time_to_seconds(start_str),
-                "end": srt_time_to_seconds(end_str),
+                "start": start_sec,
+                "end": end_sec,
                 "text": text,
             }
         )

@@ -63,12 +63,12 @@ def build_two_video_candidate(main_pool, sub_pool, max_candidates=20):
                         main_parts.append(second_seg)
                         break
 
+            # 跨视频时不按各自源时间戳重排，保持组合顺序即可。
             all_segments = main_parts + [sub_seg]
-            all_segments_sorted = sorted(all_segments, key=lambda x: x["start"])
 
             candidate = {
                 "candidate_id": f"C{candidate_id:03d}",
-                "segments": all_segments_sorted,
+                "segments": all_segments,
                 "main_segments": main_parts,
                 "sub_segments": [sub_seg],
                 "main_video_id": main_pool["video_id"],

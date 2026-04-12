@@ -284,6 +284,10 @@ def process_multi_video(videos_data, logger):
         for item in scored_candidates[:5]:
             candidate = item["candidate"]
             score = item["score"]
+            total_duration = sum(
+                max(0, seg.get("end", 0) - seg.get("start", 0))
+                for seg in candidate.get("segments", [])
+            )
             video_ids = []
             for seg in candidate.get("segments", []):
                 video_id = seg.get("video_id")
@@ -297,6 +301,7 @@ def process_multi_video(videos_data, logger):
                     "base_total": score["base_total"],
                     "multi_video_score": score.get("multi_video"),
                     "segment_count": len(candidate.get("segments", [])),
+                    "total_duration": round(total_duration, 2),
                     "video_ids": video_ids,
                     "segments": [
                         {
@@ -348,8 +353,18 @@ def process_multi_video(videos_data, logger):
             if score["total"] >= settings.BATCH_SCORE_THRESHOLD:
                 candidate_id = candidate["candidate_id"]
                 segments = candidate.get("segments", [])
+                total_duration = sum(
+                    max(0, seg.get("end", 0) - seg.get("start", 0))
+                    for seg in segments
+                )
 
                 if not segments:
+                    continue
+                if total_duration < settings.BATCH_MIN_MULTI_VIDEO_DURATION_SEC:
+                    print(
+                        f"[多视频] 跳过候选 {candidate_id}: 总时长过短 ({round(total_duration, 2)}s)",
+                        file=sys.stderr,
+                    )
                     continue
 
                 try:
@@ -367,7 +382,8 @@ def process_multi_video(videos_data, logger):
                         "candidate_id": candidate_id,
                         "output_path": output_path,
                         "score": score["total"],
-                        "segment_count": len(segments)
+                        "segment_count": len(segments),
+                        "total_duration": round(total_duration, 2),
                     })
 
                     print(f"[多视频] 已生成: {output_path}", file=sys.stderr)
