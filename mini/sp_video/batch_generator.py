@@ -8,7 +8,6 @@ from batch.phase_runner import run_phase1_loop, run_phase2_loop, run_phase3_loop
 from batch.evaluator import evaluate_quality
 from batch.visual_scorer import enrich_top_interval_candidates_with_visual_score
 from batch.transition_scorer import enrich_candidates_with_transition_score
-from batch.multi_video_selector import build_video_sources, get_main_video
 from batch.video_pool_builder import keep_intervals_to_segments
 from batch.video_combiner import build_multi_video_candidates
 from batch.multi_video_scorer import (
@@ -331,7 +330,9 @@ def process_multi_video(videos_data, logger):
                 }
             )
 
+        run_id = time.strftime("%Y%m%d_%H%M%S")
         summary = {
+            "run_id": run_id,
             "total_candidates": len(scored_candidates),
             "top_candidates": top_candidates,
             "source_videos": source_videos,
@@ -343,7 +344,7 @@ def process_multi_video(videos_data, logger):
         print(f"[多视频] summary 已写出：{summary_path}", file=sys.stderr)
 
         # 生成高分多视频候选的实际视频文件
-        video_generation_dir = os.path.join(multi_dir, "generated_videos")
+        video_generation_dir = os.path.join(multi_dir, "generated_videos", run_id)
         os.makedirs(video_generation_dir, exist_ok=True)
 
         # 准备视频源信息
@@ -397,6 +398,7 @@ def process_multi_video(videos_data, logger):
         # 更新 summary.json，添加生成的视频信息
         summary["generated_videos"] = generated_videos
         summary["videos_generated"] = len(generated_videos)
+        summary["generated_videos_dir"] = video_generation_dir
 
         # 重新写入更新后的 summary
         with open(summary_path, "w", encoding="utf-8") as f:

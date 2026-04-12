@@ -6,9 +6,7 @@ multi_video_builder.py - 多视频合并构建器
 
 import os
 import subprocess
-import time
 import sys
-from datetime import datetime
 
 
 def build_multi_video_filter_complex(sources, segments):
@@ -42,12 +40,15 @@ def build_multi_video_filter_complex(sources, segments):
     stream_inputs = []
 
     for i, segment in enumerate(segments):
-        video_id = segment["video_id"]
-        start = segment["start"]
-        end = segment["end"]
+        video_id = segment.get("video_id")
+        start = segment.get("start")
+        end = segment.get("end")
 
         if video_id not in input_map:
             print(f"[WARNING] Video ID {video_id} not found in sources, skipping segment", file=sys.stderr)
+            continue
+        if start is None or end is None or end <= start:
+            print(f"[WARNING] Invalid segment for {video_id}, skipping", file=sys.stderr)
             continue
 
         input_idx = input_map[video_id]
@@ -92,6 +93,8 @@ def build_multi_video_command(sources, segments, output_path):
             unique_video_ids.append(vid_id)
 
     input_paths = [video_path_map[vid_id] for vid_id in unique_video_ids if vid_id in video_path_map]
+    if not input_paths:
+        raise ValueError("No valid input video paths found for multi video build")
 
     cmd = ["ffmpeg"]
     for path in input_paths:
@@ -140,6 +143,9 @@ def generate_multi_video(sources, segments, output_dir, candidate_id):
 
     # 构建FFmpeg命令
     cmd, input_paths = build_multi_video_command(sources, segments, output_path)
+    for path in input_paths:
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Input video not found: {path}")
 
     print(f"[MULTI-VIDEO] Building video from {len(input_paths)} sources", file=sys.stderr)
     print(f"[MULTI-VIDEO] Using {len(segments)} segments", file=sys.stderr)
