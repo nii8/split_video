@@ -92,6 +92,13 @@ python3 scripts/analyze_performance.py --output performance_report.md
 python3 scripts/generate_test_report.py --output final_report.md
 ```
 
+额外产物：
+
+- `manual_scoring_template.csv`
+  - 供人工逐条回标
+- 机器评分表
+  - 直接写入综合测试报告
+
 ### 5. `tests/test_batch_generator.py`
 **功能**: pytest 集成测试  
 **用途**: 自动化测试
@@ -149,8 +156,8 @@ ffprobe -version
 | 配置项 | 测试模式值 | 说明 |
 |--------|-----------|------|
 | `BATCH_TEST_MODE` | `True` | 启用测试模式 |
-| `BATCH_PHASE1_COUNT` | `1` | Phase1 迭代次数 |
-| `BATCH_PHASE2_COUNT` | `1` | Phase2 迭代次数 |
+| `BATCH_PHASE1_COUNT` | `BATCH_TEST_PHASE1_COUNT` | Phase1 迭代次数 |
+| `BATCH_PHASE2_COUNT` | `BATCH_TEST_PHASE2_COUNT` | Phase2 迭代次数 |
 | `BATCH_MULTI_VIDEO_ENABLE` | `True/False` | 根据模式设置 |
 
 ### 测试流程
@@ -187,7 +194,8 @@ data/batch_results/test_reports/
 ├── test_report_multi_YYYYMMDD_HHMMSS.json
 ├── test_report_multi_YYYYMMDD_HHMMSS.md
 ├── performance_analysis.md
-└── final_test_report.md
+├── final_test_report.md
+└── manual_scoring_template.csv
 ```
 
 ### 报告内容
@@ -202,9 +210,17 @@ data/batch_results/test_reports/
 - 执行摘要
 - 测试覆盖
 - 功能验证
+- 机器评分表
 - 性能分析
 - 错误和警告
 - 结论
+
+**CSV 模板** 包含：
+- 视频路径
+- 时长与时长桶
+- 机器评分各维度
+- 人工评分空列
+- 备注列
 
 ### 示例报告片段
 
@@ -343,3 +359,4 @@ rm -rf data/batch_results/multi_video/generated_videos/
 - [多视频功能文档](../docs/reference/multi_video_phase3_guide.md)
 - [批量生成指南](../docs/reference/batch_generation.md)
 - [性能优化建议](../docs/core/total.md)
+- [评分 Schema](SCORING_SCHEMA.md)

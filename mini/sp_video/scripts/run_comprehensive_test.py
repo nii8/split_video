@@ -61,11 +61,12 @@ class TestRunner:
             "warnings": [],
         }
         self.timings = {}
+        self.min_multi_video_duration_sec = settings.BATCH_MIN_MULTI_VIDEO_DURATION_SEC
 
         # 配置测试模式
         settings.BATCH_TEST_MODE = True
-        settings.BATCH_PHASE1_COUNT = 1
-        settings.BATCH_PHASE2_COUNT = 1
+        settings.BATCH_PHASE1_COUNT = getattr(settings, "BATCH_TEST_PHASE1_COUNT", 3)
+        settings.BATCH_PHASE2_COUNT = getattr(settings, "BATCH_TEST_PHASE2_COUNT", 20)
 
         if mode == "multi":
             settings.BATCH_MULTI_VIDEO_ENABLE = True
@@ -130,120 +131,39 @@ class TestRunner:
         print("开始单视频模式测试...")
         print()
 
-        # 只测试第一个视频
-        video_id, srt_path, mp4_path = videos[0]
-
         logger = BatchLogger(settings.BATCH_LOG_FILE)
+        total_generated = 0
+        for video_id, srt_path, mp4_path in videos:
+            print(f"处理单视频源 {video_id} ...")
+            with Timer(f"single_{video_id}_total") as t:
+                try:
+                    process_video(video_id, srt_path, mp4_path, logger)
+                except Exception as e:
+                    print(f"  ✗ {video_id} 处理失败：{e}")
+                    self.results["errors"].append(f"{video_id}: {str(e)}")
+                    continue
+            self.timings[f"single_{video_id}_total"] = t.duration
 
-        # Phase 1
-        print("Phase 1: 字幕筛选")
-        with Timer("phase1") as t:
-            try:
-                from batch.phase_runner import run_phase1_loop
+            summary_path = os.path.join(self.output_dir, video_id, "summary.json")
+            if os.path.exists(summary_path):
+                with open(summary_path, "r", encoding="utf-8") as f:
+                    summary = json.load(f)
+                generated = summary.get("generated_videos", [])
+                total_generated += len(generated)
+                self.results["generated_videos"].extend(generated)
+                print(f"  ✓ {video_id}: 生成 {len(generated)} 个视频")
+            else:
+                self.results["warnings"].append(f"Summary missing for {video_id}")
 
-                phase1_dir = os.path.join(self.output_dir, video_id, "phase1")
-                phase1_files = run_phase1_loop(
-                    video_id, srt_path, phase1_dir, 1, logger
-                )
-                success = len(phase1_files) > 0
-                print(f"  {'✓' if success else '✗'} Phase1: {len(phase1_files)} 个结果")
-            except Exception as e:
-                print(f"  ✗ Phase1 失败：{e}")
-                self.results["errors"].append(f"Phase1: {str(e)}")
-                return False
+        self.timings["single_video_total"] = sum(
+            duration
+            for name, duration in self.timings.items()
+            if name.startswith("single_") and name.endswith("_total")
+        )
 
-        self.timings["phase1"] = t.duration
-
-        # Phase 2
-        print("Phase 2: 脚本生成")
-        with Timer("phase2") as t:
-            try:
-                from batch.phase_runner import run_phase2_loop
-
-                phase2_dir = os.path.join(self.output_dir, video_id, "phase2")
-                phase2_files = run_phase2_loop(
-                    video_id, phase1_files, phase2_dir, 1, logger
-                )
-                success = len(phase2_files) > 0
-                print(f"  {'✓' if success else '✗'} Phase2: {len(phase2_files)} 个结果")
-            except Exception as e:
-                print(f"  ✗ Phase2 失败：{e}")
-                self.results["errors"].append(f"Phase2: {str(e)}")
-                return False
-
-        self.timings["phase2"] = t.duration
-
-        # Phase 3
-        print("Phase 3: 时间轴匹配")
-        with Timer("phase3") as t:
-            try:
-                from batch.phase_runner import run_phase3_loop
-
-                phase3_dir = os.path.join(self.output_dir, video_id, "phase3")
-                phase3_results = run_phase3_loop(
-                    video_id, srt_path, phase2_files, phase3_dir, logger
-                )
-                success = len(phase3_results) > 0
-                print(
-                    f"  {'✓' if success else '✗'} Phase3: {len(phase3_results)} 个有效序列"
-                )
-            except Exception as e:
-                print(f"  ✗ Phase3 失败：{e}")
-                self.results["errors"].append(f"Phase3: {str(e)}")
-                return False
-
-        self.timings["phase3"] = t.duration
-
-        # Phase 4
-        print("Phase 4: 质量评分")
-        with Timer("phase4") as t:
-            try:
-                from batch.evaluator import evaluate_quality
-
-                phase4_dir = os.path.join(self.output_dir, video_id, "phase4")
-                os.makedirs(phase4_dir, exist_ok=True)
-
-                scored = []
-                for idx, intervals in phase3_results:
-                    score = evaluate_quality(mp4_path, intervals)
-                    scored.append((idx, intervals, score))
-
-                print(f"  ✓ Phase4: {len(scored)} 个评分完成")
-            except Exception as e:
-                print(f"  ✗ Phase4 失败：{e}")
-                self.results["errors"].append(f"Phase4: {str(e)}")
-                scored = []
-
-        self.timings["phase4"] = t.duration
-
-        # Phase 5
-        print("Phase 5: 视频生成")
-        with Timer("phase5") as t:
-            try:
-                from make_video.step3 import cut_video_main
-
-                phase5_dir = os.path.join(self.output_dir, video_id, "phase5")
-                os.makedirs(phase5_dir, exist_ok=True)
-
-                generated = []
-                for idx, intervals, score in scored:
-                    if score["total"] >= settings.BATCH_SCORE_THRESHOLD:
-                        output_path = cut_video_main(
-                            intervals, mp4_path, video_id, "test"
-                        )
-                        final_path = os.path.join(phase5_dir, f"video_{idx:03d}.mp4")
-                        os.rename(output_path, final_path)
-                        generated.append(final_path)
-                        self.results["generated_videos"].append(
-                            {"path": final_path, "score": score["total"]}
-                        )
-
-                print(f"  ✓ Phase5: 生成 {len(generated)} 个视频")
-            except Exception as e:
-                print(f"  ✗ Phase5 失败：{e}")
-                self.results["errors"].append(f"Phase5: {str(e)}")
-
-        self.timings["phase5"] = t.duration
+        if total_generated <= 0:
+            self.results["errors"].append("No single-video outputs generated")
+            return False
 
         return True
 
@@ -277,11 +197,17 @@ class TestRunner:
                     summary = json.load(f)
 
                 print(f"  ✓ Summary: {summary.get('total_candidates', 0)} 个候选")
+                print(f"  ✓ 达标候选：{summary.get('qualified_candidates', 0)} 个")
                 print(f"  ✓ 生成视频：{summary.get('videos_generated', 0)} 个")
 
                 # 收集生成的视频信息
                 for vid in summary.get("generated_videos", []):
                     self.results["generated_videos"].append(vid)
+
+                if summary.get("videos_generated", 0) <= 0:
+                    self.results["errors"].append(
+                        f"No multi-video output reached {self.min_multi_video_duration_sec:.0f}s"
+                    )
             else:
                 print("  ✗ Summary 文件不存在")
                 self.results["warnings"].append("Summary file not found")
@@ -289,13 +215,45 @@ class TestRunner:
             # 检查生成的视频
             gen_dir = os.path.join(multi_dir, "generated_videos")
             if os.path.exists(gen_dir):
-                video_files = [f for f in os.listdir(gen_dir) if f.endswith(".mp4")]
+                video_files = []
+                for root, _, files in os.walk(gen_dir):
+                    for fname in files:
+                        if fname.endswith(".mp4"):
+                            video_files.append(os.path.join(root, fname))
                 print(f"  ✓ 视频目录：{len(video_files)} 个文件")
-        else:
-            print("  ✗ 多视频输出目录不存在")
-            self.results["warnings"].append("Multi-video output directory not found")
+                for video_path in video_files:
+                    duration = self._get_video_duration(video_path)
+                    if duration < self.min_multi_video_duration_sec:
+                        self.results["errors"].append(
+                            f"Video shorter than {self.min_multi_video_duration_sec:.0f}s: {os.path.basename(video_path)} ({duration:.3f}s)"
+                        )
+            else:
+                print("  ✗ 多视频输出目录不存在")
+                self.results["warnings"].append("Multi-video output directory not found")
 
         return True
+
+    def _get_video_duration(self, video_path):
+        try:
+            result = subprocess.run(
+                [
+                    "ffprobe",
+                    "-v",
+                    "error",
+                    "-show_entries",
+                    "format=duration",
+                    "-of",
+                    "default=noprint_wrappers=1:nokey=1",
+                    video_path,
+                ],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                return 0.0
+            return float(result.stdout.strip() or 0)
+        except Exception:
+            return 0.0
 
     def _print_timing_analysis(self):
         """打印时间分析"""

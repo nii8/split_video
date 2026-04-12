@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import time
+import math
 import settings
 from batch.logger import BatchLogger
 from batch.phase_runner import run_phase1_loop, run_phase2_loop, run_phase3_loop
@@ -16,6 +17,101 @@ from batch.multi_video_scorer import (
 )
 from make_video.step3 import cut_video_main
 from make_video.multi_video_builder import generate_multi_video
+
+
+def get_interval_total_duration(keep_intervals):
+    total = 0.0
+    for interval in keep_intervals:
+        if not interval or not interval[0][0]:
+            continue
+        start, end = interval[0]
+        total += max(0, cut_video_time_to_seconds(end) - cut_video_time_to_seconds(start))
+    return round(total, 3)
+
+
+def cut_video_time_to_seconds(time_str):
+    time_str = time_str.replace(",", ".")
+    hh_mm_ss, milliseconds = time_str.split(".")
+    hh, mm, ss = hh_mm_ss.split(":")
+    return int(hh) * 3600 + int(mm) * 60 + float(f"{ss}.{milliseconds}")
+
+
+def get_duration_bucket(duration_sec, bucket_config):
+    for bucket in bucket_config:
+        min_sec = bucket.get("min_sec", 0)
+        max_sec = bucket.get("max_sec")
+        if duration_sec >= min_sec and (max_sec is None or duration_sec < max_sec):
+            return bucket["label"]
+    if bucket_config:
+        return bucket_config[-1]["label"]
+    return "unknown"
+
+
+def compute_bucket_targets(total_count, bucket_config):
+    if total_count <= 0 or not bucket_config:
+        return {}
+
+    total_probability = sum(bucket.get("probability", 0) for bucket in bucket_config) or 1.0
+    raw_targets = []
+    assigned = 0
+    for bucket in bucket_config:
+        ratio = bucket.get("probability", 0) / total_probability
+        raw = total_count * ratio
+        floor_value = int(math.floor(raw))
+        raw_targets.append((bucket["label"], floor_value, raw - floor_value))
+        assigned += floor_value
+
+    remainder = max(0, total_count - assigned)
+    raw_targets.sort(key=lambda item: item[2], reverse=True)
+
+    targets = {label: floor_value for label, floor_value, _ in raw_targets}
+    for label, _, _ in raw_targets[:remainder]:
+        targets[label] += 1
+
+    return targets
+
+
+def select_candidates_by_bucket(
+    candidates,
+    target_count,
+    bucket_config,
+    score_threshold=None,
+):
+    if not candidates or target_count <= 0:
+        return []
+
+    bucket_targets = compute_bucket_targets(target_count, bucket_config)
+    preferred = [c for c in candidates if score_threshold is None or c["score_total"] >= score_threshold]
+    remaining = list(candidates)
+    selected = []
+    used_ids = set()
+
+    for bucket in bucket_config:
+        label = bucket["label"]
+        need = bucket_targets.get(label, 0)
+        if need <= 0:
+            continue
+
+        bucket_candidates = [
+            c for c in preferred if c["duration_bucket"] == label and c["candidate_key"] not in used_ids
+        ]
+        bucket_candidates.sort(key=lambda x: x["score_total"], reverse=True)
+
+        for candidate in bucket_candidates[:need]:
+            selected.append(candidate)
+            used_ids.add(candidate["candidate_key"])
+
+    if len(selected) < target_count:
+        for candidate in remaining:
+            if candidate["candidate_key"] in used_ids:
+                continue
+            selected.append(candidate)
+            used_ids.add(candidate["candidate_key"])
+            if len(selected) >= target_count:
+                break
+
+    selected.sort(key=lambda x: (x["score_total"], x["duration_sec"]), reverse=True)
+    return selected[:target_count]
 
 
 def scan_videos(data_dir):
@@ -158,28 +254,66 @@ def process_video(video_id, srt_path, mp4_path, logger):
         scored = enrich_candidates_with_transition_score(scored)
         phase_stats["transition_sec"] = round(time.time() - start, 2)
 
-    # Phase5: 分数够高的候选再去生成视频
+    candidate_infos = []
+    for idx, intervals, score in scored:
+        candidate_infos.append(
+            {
+                "candidate_key": f"{video_id}_{idx:03d}",
+                "idx": idx,
+                "intervals": intervals,
+                "score": score,
+                "score_total": score.get("total", 0),
+                "duration_sec": get_interval_total_duration(intervals),
+                "duration_bucket": get_duration_bucket(
+                    get_interval_total_duration(intervals),
+                    settings.BATCH_DURATION_BUCKETS,
+                ),
+            }
+        )
+
+    candidate_infos.sort(
+        key=lambda item: (item["score_total"], item["duration_sec"]), reverse=True
+    )
+    selected_candidates = select_candidates_by_bucket(
+        candidate_infos,
+        target_count=getattr(settings, "BATCH_SINGLE_VIDEO_TARGET_PER_SOURCE", 10),
+        bucket_config=getattr(settings, "BATCH_DURATION_BUCKETS", []),
+        score_threshold=getattr(settings, "BATCH_SCORE_THRESHOLD", None),
+    )
+
+    # Phase5: 按时长分布配置生成单视频候选，优先满足每源视频目标数量。
     phase5_dir = os.path.join(base_dir, "phase5")
     os.makedirs(phase5_dir, exist_ok=True)
     start = time.time()
     generated = []
-    for idx, intervals, score in scored:
-        if score["total"] >= settings.BATCH_SCORE_THRESHOLD:
-            start = time.time()
-            try:
-                output_path = cut_video_main(intervals, mp4_path, video_id, "batch")
-                final_path = os.path.join(phase5_dir, f"video_{idx:03d}.mp4")
-                os.rename(output_path, final_path)
-                duration = time.time() - start
-                logger.log_phase(
-                    video_id, "phase5", idx, duration, "success", output=final_path
-                )
-                generated.append(final_path)
-            except Exception as e:
-                duration = time.time() - start
-                logger.log_phase(
-                    video_id, "phase5", idx, duration, "failed", reason=str(e)
-                )
+    for candidate in selected_candidates:
+        idx = candidate["idx"]
+        intervals = candidate["intervals"]
+        score = candidate["score"]
+        start = time.time()
+        try:
+            output_path = cut_video_main(intervals, mp4_path, video_id, "batch")
+            final_path = os.path.join(phase5_dir, f"video_{idx:03d}.mp4")
+            os.rename(output_path, final_path)
+            duration = time.time() - start
+            logger.log_phase(
+                video_id, "phase5", idx, duration, "success", output=final_path
+            )
+            generated.append(
+                {
+                    "candidate_key": candidate["candidate_key"],
+                    "path": final_path,
+                    "idx": idx,
+                    "duration_sec": round(candidate["duration_sec"], 3),
+                    "duration_bucket": candidate["duration_bucket"],
+                    "machine_score": score,
+                }
+            )
+        except Exception as e:
+            duration = time.time() - start
+            logger.log_phase(
+                video_id, "phase5", idx, duration, "failed", reason=str(e)
+            )
     phase_stats["phase5_sec"] = round(time.time() - start, 2)
 
     generate_summary(
@@ -188,7 +322,8 @@ def process_video(video_id, srt_path, mp4_path, logger):
         phase1_files,
         phase2_files,
         phase3_results,
-        scored,
+        candidate_infos,
+        selected_candidates,
         generated,
     )
     print(
@@ -279,9 +414,12 @@ def process_multi_video(videos_data, logger):
     old_phase1_count = settings.BATCH_PHASE1_COUNT
     old_phase2_count = settings.BATCH_PHASE2_COUNT
     if getattr(settings, "BATCH_TEST_MODE", False):
-        settings.BATCH_PHASE1_COUNT = 1
-        settings.BATCH_PHASE2_COUNT = 1
-        print(f"[多视频模式] 临时降低参数：Phase1=1, Phase2=1", file=sys.stderr)
+        settings.BATCH_PHASE1_COUNT = getattr(settings, "BATCH_TEST_PHASE1_COUNT", 3)
+        settings.BATCH_PHASE2_COUNT = getattr(settings, "BATCH_TEST_PHASE2_COUNT", 20)
+        print(
+            f"[多视频模式] 临时降低参数：Phase1={settings.BATCH_PHASE1_COUNT}, Phase2={settings.BATCH_PHASE2_COUNT}",
+            file=sys.stderr,
+        )
 
     try:
         per_video_results = []
@@ -327,7 +465,11 @@ def process_multi_video(videos_data, logger):
         phase_stats["pool_build_sec"] = round(time.time() - start, 2)
 
         start = time.time()
-        candidates = build_multi_video_candidates(pools, max_candidates=20)
+        candidates = build_multi_video_candidates(
+            pools,
+            max_candidates=getattr(settings, "BATCH_MULTI_VIDEO_CANDIDATE_COUNT", 150),
+            min_duration_sec=settings.BATCH_MIN_MULTI_VIDEO_DURATION_SEC,
+        )
         print(f"[多视频] 生成 {len(candidates)} 个组合候选", file=sys.stderr)
         phase_stats["candidate_build_sec"] = round(time.time() - start, 2)
 
@@ -338,7 +480,10 @@ def process_multi_video(videos_data, logger):
         start = time.time()
         scored_candidates = []
         for candidate in candidates:
-            mv_result = score_multi_video_candidate(candidate)
+            mv_result = score_multi_video_candidate(
+                candidate,
+                min_duration_sec=settings.BATCH_MIN_MULTI_VIDEO_DURATION_SEC,
+            )
             base_score = 7.5
             for seg in candidate.get("segments", []):
                 if seg.get("base_score") is not None:
@@ -350,19 +495,43 @@ def process_multi_video(videos_data, logger):
             )
             scored_candidates.append(
                 {
+                    "candidate_key": candidate["candidate_id"],
                     "candidate": candidate,
                     "score": merged,
+                    "score_total": merged["total"],
+                    "duration_sec": round(
+                        mv_result.get("meta", {}).get("total_duration", 0), 3
+                    ),
+                    "duration_bucket": get_duration_bucket(
+                        mv_result.get("meta", {}).get("total_duration", 0),
+                        settings.BATCH_DURATION_BUCKETS,
+                    ),
                 }
             )
 
-        scored_candidates.sort(key=lambda x: x["score"]["total"], reverse=True)
+        scored_candidates.sort(
+            key=lambda x: (x["score_total"], x["duration_sec"]), reverse=True
+        )
         phase_stats["candidate_score_sec"] = round(time.time() - start, 2)
 
         multi_dir = os.path.join(settings.BATCH_RESULTS_DIR, "multi_video")
         os.makedirs(multi_dir, exist_ok=True)
 
+        selected_candidates = select_candidates_by_bucket(
+            scored_candidates,
+            target_count=getattr(settings, "BATCH_MULTI_VIDEO_TARGET_COUNT", 100),
+            bucket_config=getattr(settings, "BATCH_DURATION_BUCKETS", []),
+            score_threshold=getattr(settings, "BATCH_SCORE_THRESHOLD", None),
+        )
+
+        qualified_candidates = sum(
+            1
+            for item in selected_candidates
+            if item["duration_sec"] >= settings.BATCH_MIN_MULTI_VIDEO_DURATION_SEC
+        )
+
         top_candidates = []
-        for item in scored_candidates[:5]:
+        for item in selected_candidates[:20]:
             candidate = item["candidate"]
             score = item["score"]
             total_duration = sum(
@@ -400,6 +569,11 @@ def process_multi_video(videos_data, logger):
         summary = {
             "run_id": run_id,
             "total_candidates": len(scored_candidates),
+            "selected_candidates": len(selected_candidates),
+            "qualified_candidates": qualified_candidates,
+            "min_duration_sec": settings.BATCH_MIN_MULTI_VIDEO_DURATION_SEC,
+            "generation_target": getattr(settings, "BATCH_MULTI_VIDEO_TARGET_COUNT", 100),
+            "duration_buckets": getattr(settings, "BATCH_DURATION_BUCKETS", []),
             "top_candidates": top_candidates,
             "source_videos": source_videos,
         }
@@ -422,64 +596,64 @@ def process_multi_video(videos_data, logger):
             video_sources_map[vid] for vid in source_videos if vid in video_sources_map
         ]
 
-        # 为top N个候选生成实际视频（避免生成过多文件）
-        top_n_generate = 5  # 可以根据设置调整
+        # 为选中的多视频候选生成实际视频，且只允许生成满足最小时长要求的候选。
         generated_videos = []
 
         start = time.time()
-        for i, item in enumerate(scored_candidates[:top_n_generate]):
+        for item in selected_candidates:
             candidate = item["candidate"]
             score = item["score"]
 
-            if score["total"] >= settings.BATCH_SCORE_THRESHOLD:
-                candidate_id = candidate["candidate_id"]
-                segments = candidate.get("segments", [])
-                total_duration = sum(
-                    max(0, seg.get("end", 0) - seg.get("start", 0)) for seg in segments
+            candidate_id = candidate["candidate_id"]
+            segments = candidate.get("segments", [])
+            total_duration = sum(
+                max(0, seg.get("end", 0) - seg.get("start", 0)) for seg in segments
+            )
+
+            if not segments:
+                continue
+            if total_duration < settings.BATCH_MIN_MULTI_VIDEO_DURATION_SEC:
+                print(
+                    f"[多视频] 跳过候选 {candidate_id}: 总时长过短 ({round(total_duration, 2)}s)",
+                    file=sys.stderr,
+                )
+                continue
+
+            try:
+                print(
+                    f"[多视频] 正在生成候选 {candidate_id} (分数: {score['total']})...",
+                    file=sys.stderr,
                 )
 
-                if not segments:
-                    continue
-                if total_duration < settings.BATCH_MIN_MULTI_VIDEO_DURATION_SEC:
-                    print(
-                        f"[多视频] 跳过候选 {candidate_id}: 总时长过短 ({round(total_duration, 2)}s)",
-                        file=sys.stderr,
-                    )
-                    continue
+                output_path = generate_multi_video(
+                    sources_list, segments, video_generation_dir, candidate_id
+                )
 
-                try:
-                    print(
-                        f"[多视频] 正在生成候选 {candidate_id} (分数: {score['total']})...",
-                        file=sys.stderr,
-                    )
+                generated_videos.append(
+                    {
+                        "candidate_id": candidate_id,
+                        "output_path": output_path,
+                        "score": score["total"],
+                        "machine_score": score,
+                        "segment_count": len(segments),
+                        "total_duration": round(total_duration, 2),
+                        "duration_bucket": get_duration_bucket(
+                            total_duration, settings.BATCH_DURATION_BUCKETS
+                        ),
+                    }
+                )
 
-                    # 生成多视频文件
-                    output_path = generate_multi_video(
-                        sources_list, segments, video_generation_dir, candidate_id
-                    )
-
-                    generated_videos.append(
-                        {
-                            "candidate_id": candidate_id,
-                            "output_path": output_path,
-                            "score": score["total"],
-                            "segment_count": len(segments),
-                            "total_duration": round(total_duration, 2),
-                        }
-                    )
-
-                    print(f"[多视频] 已生成: {output_path}", file=sys.stderr)
-                except Exception as e:
-                    print(
-                        f"[多视频] 生成候选 {candidate_id} 失败: {e}", file=sys.stderr
-                    )
-                    continue
+                print(f"[多视频] 已生成: {output_path}", file=sys.stderr)
+            except Exception as e:
+                print(f"[多视频] 生成候选 {candidate_id} 失败: {e}", file=sys.stderr)
+                continue
         phase_stats["video_generate_sec"] = round(time.time() - start, 2)
 
         # 更新 summary.json，添加生成的视频信息
         summary["generated_videos"] = generated_videos
         summary["videos_generated"] = len(generated_videos)
         summary["generated_videos_dir"] = video_generation_dir
+        summary["duration_requirement_met"] = len(generated_videos) > 0
 
         # 重新写入更新后的 summary
         with open(summary_path, "w", encoding="utf-8") as f:
@@ -512,29 +686,48 @@ def process_multi_video(videos_data, logger):
 
 
 def generate_summary(
-    video_id, base_dir, phase1_files, phase2_files, phase3_results, scored, generated
+    video_id,
+    base_dir,
+    phase1_files,
+    phase2_files,
+    phase3_results,
+    candidate_infos,
+    selected_candidates,
+    generated,
 ):
     """生成统计报告"""
-    top_scores = sorted(scored, key=lambda x: x[2]["total"], reverse=True)[:5]
+    top_scores = sorted(
+        candidate_infos,
+        key=lambda item: (item["score_total"], item["duration_sec"]),
+        reverse=True,
+    )[:10]
     summary = {
         "video_id": video_id,
         "phase1_count": len(phase1_files),
         "phase2_count": len(phase2_files),
         "phase3_success": len(phase3_results),
-        "phase4_scored": len(scored),
+        "phase4_scored": len(candidate_infos),
         "phase5_generated": len(generated),
         "generated_videos": generated,
+        "generation_target": getattr(settings, "BATCH_SINGLE_VIDEO_TARGET_PER_SOURCE", 10),
+        "selected_candidate_count": len(selected_candidates),
+        "duration_buckets": getattr(settings, "BATCH_DURATION_BUCKETS", []),
         "visual_enabled": getattr(settings, "BATCH_VISUAL_ENABLE", False),
         "transition_enabled": getattr(settings, "BATCH_TRANSITION_ENABLE", False),
         "top_scores": [
             {
-                "idx": idx,
-                "total": score.get("total"),
-                "base_total": score.get("base_total"),
-                "visual": score.get("visual"),
-                "transition_natural": score.get("transition_natural"),
+                "idx": item["idx"],
+                "duration_sec": round(item["duration_sec"], 3),
+                "duration_bucket": item["duration_bucket"],
+                "total": item["score"].get("total"),
+                "base_total": item["score"].get("base_total"),
+                "video": item["score"].get("video"),
+                "transition": item["score"].get("transition"),
+                "audio": item["score"].get("audio"),
+                "visual": item["score"].get("visual"),
+                "transition_natural": item["score"].get("transition_natural"),
             }
-            for idx, _, score in top_scores
+            for item in top_scores
         ],
     }
     summary_path = os.path.join(base_dir, "summary.json")

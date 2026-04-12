@@ -12,6 +12,7 @@ import argparse
 import subprocess
 from datetime import datetime
 from pathlib import Path
+import csv
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -38,6 +39,136 @@ def load_test_reports(results_dir):
     return reports
 
 
+def load_generation_summaries(results_dir):
+    rows = []
+
+    for video_id in os.listdir(results_dir):
+        if video_id in ["test_reports", "multi_video"]:
+            continue
+
+        summary_path = os.path.join(results_dir, video_id, "summary.json")
+        if not os.path.exists(summary_path):
+            continue
+
+        try:
+            with open(summary_path, "r", encoding="utf-8") as f:
+                summary = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            continue
+
+        for item in summary.get("generated_videos", []):
+            score = item.get("machine_score", {})
+            rows.append(
+                {
+                    "mode": "single",
+                    "source_id": video_id,
+                    "candidate_id": item.get("idx"),
+                    "path": item.get("path"),
+                    "duration_sec": item.get("duration_sec", 0),
+                    "duration_bucket": item.get("duration_bucket", ""),
+                    "machine_total": score.get("total"),
+                    "machine_video": score.get("video"),
+                    "machine_transition": score.get("transition"),
+                    "machine_audio": score.get("audio"),
+                    "machine_visual": score.get("visual"),
+                    "machine_duration_fit": score.get("duration_fit"),
+                    "machine_completeness": score.get("completeness"),
+                    "machine_cross_video_coherence": None,
+                    "machine_multi_video": None,
+                    "manual_total": "",
+                    "manual_hook": "",
+                    "manual_clarity": "",
+                    "manual_rhythm": "",
+                    "manual_completeness": "",
+                    "manual_emotion": "",
+                    "manual_notes": "",
+                }
+            )
+
+    multi_summary_path = os.path.join(results_dir, "multi_video", "summary.json")
+    if os.path.exists(multi_summary_path):
+        try:
+            with open(multi_summary_path, "r", encoding="utf-8") as f:
+                summary = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            summary = {}
+
+        for item in summary.get("generated_videos", []):
+            score = item.get("machine_score", {})
+            rows.append(
+                {
+                    "mode": "multi",
+                    "source_id": "multi_video",
+                    "candidate_id": item.get("candidate_id"),
+                    "path": item.get("output_path"),
+                    "duration_sec": item.get("total_duration", 0),
+                    "duration_bucket": item.get("duration_bucket", ""),
+                    "machine_total": score.get("total"),
+                    "machine_video": score.get("video"),
+                    "machine_transition": score.get("transition"),
+                    "machine_audio": score.get("audio"),
+                    "machine_visual": score.get("visual"),
+                    "machine_duration_fit": score.get("duration_fit"),
+                    "machine_completeness": score.get("completeness"),
+                    "machine_cross_video_coherence": score.get("cross_video_coherence"),
+                    "machine_multi_video": score.get("multi_video"),
+                    "manual_total": "",
+                    "manual_hook": "",
+                    "manual_clarity": "",
+                    "manual_rhythm": "",
+                    "manual_completeness": "",
+                    "manual_emotion": "",
+                    "manual_notes": "",
+                }
+            )
+
+    rows.sort(
+        key=lambda item: (
+            item.get("mode", ""),
+            item.get("source_id", ""),
+            item.get("machine_total") or 0,
+        ),
+        reverse=True,
+    )
+    return rows
+
+
+def write_score_csv(rows, output_path):
+    if not rows:
+        return
+
+    fieldnames = [
+        "mode",
+        "source_id",
+        "candidate_id",
+        "path",
+        "duration_sec",
+        "duration_bucket",
+        "machine_total",
+        "machine_video",
+        "machine_transition",
+        "machine_audio",
+        "machine_visual",
+        "machine_duration_fit",
+        "machine_completeness",
+        "machine_cross_video_coherence",
+        "machine_multi_video",
+        "manual_total",
+        "manual_hook",
+        "manual_clarity",
+        "manual_rhythm",
+        "manual_completeness",
+        "manual_emotion",
+        "manual_notes",
+    ]
+
+    with open(output_path, "w", encoding="utf-8-sig", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(row)
+
+
 def verify_generated_videos(results_dir):
     """验证生成的视频文件"""
     verification = {
@@ -46,6 +177,8 @@ def verify_generated_videos(results_dir):
         "total_count": 0,
         "total_size_mb": 0,
         "valid_count": 0,
+        "min_multi_video_duration_sec": 18.0,
+        "multi_video_duration_failures": [],
     }
 
     # 检查单视频输出
@@ -74,15 +207,27 @@ def verify_generated_videos(results_dir):
     # 检查多视频输出
     multi_dir = os.path.join(results_dir, "multi_video", "generated_videos")
     if os.path.exists(multi_dir):
-        for fname in os.listdir(multi_dir):
-            if fname.endswith(".mp4"):
-                fpath = os.path.join(multi_dir, fname)
+        for root, _, files in os.walk(multi_dir):
+            for fname in files:
+                if not fname.endswith(".mp4"):
+                    continue
+                fpath = os.path.join(root, fname)
                 size_mb = os.path.getsize(fpath) / 1024 / 1024
+                duration_sec = get_video_duration(fpath)
 
                 valid = verify_video(fpath)
+                if duration_sec < verification["min_multi_video_duration_sec"]:
+                    verification["multi_video_duration_failures"].append(
+                        {"path": fpath, "duration_sec": round(duration_sec, 3)}
+                    )
 
                 verification["multi_videos"].append(
-                    {"path": fpath, "size_mb": round(size_mb, 2), "valid": valid}
+                    {
+                        "path": fpath,
+                        "size_mb": round(size_mb, 2),
+                        "duration_sec": round(duration_sec, 3),
+                        "valid": valid,
+                    }
                 )
                 verification["total_count"] += 1
                 verification["total_size_mb"] += size_mb
@@ -126,7 +271,31 @@ def verify_video(video_path):
         return False
 
 
-def generate_markdown_report(reports, verification, output_path):
+def get_video_duration(video_path):
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                video_path,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            return 0.0
+        return float(result.stdout.strip() or 0)
+    except (subprocess.TimeoutExpired, ValueError, Exception):
+        return 0.0
+
+
+def generate_markdown_report(reports, verification, score_rows, output_path):
     """生成 Markdown 报告"""
     lines = []
 
@@ -204,8 +373,38 @@ def generate_markdown_report(reports, verification, output_path):
         lines.append(
             f"- 总大小：{sum(v['size_mb'] for v in verification['multi_videos']):.2f} MB"
         )
+        lines.append(
+            f"- 达标时长：{verification['min_multi_video_duration_sec']:.0f} 秒以上"
+        )
+        lines.append(
+            f"- 时长不达标：{len(verification['multi_video_duration_failures'])} 个"
+        )
     else:
         lines.append("- 无生成的视频")
+    lines.append("")
+
+    # 机器评分表
+    lines.append("## 机器评分表")
+    lines.append("")
+    if score_rows:
+        lines.append("| 模式 | 来源 | 候选 | 时长(s) | 桶 | 总分 | 清晰度 | 节奏 | 时长适配 | 完整度 | 跨视频一致性 |")
+        lines.append("|------|------|------|---------|----|------|--------|------|----------|--------|--------------|")
+        for row in score_rows[:30]:
+            lines.append(
+                f"| {row['mode']} | {row['source_id']} | {row['candidate_id']} | "
+                f"{float(row.get('duration_sec') or 0):.2f} | {row.get('duration_bucket') or '-'} | "
+                f"{row.get('machine_total') if row.get('machine_total') is not None else '-'} | "
+                f"{row.get('machine_video') if row.get('machine_video') is not None else '-'} | "
+                f"{row.get('machine_transition') if row.get('machine_transition') is not None else '-'} | "
+                f"{row.get('machine_duration_fit') if row.get('machine_duration_fit') is not None else '-'} | "
+                f"{row.get('machine_completeness') if row.get('machine_completeness') is not None else '-'} | "
+                f"{row.get('machine_cross_video_coherence') if row.get('machine_cross_video_coherence') is not None else '-'} |"
+            )
+        if len(score_rows) > 30:
+            lines.append("")
+            lines.append(f"仅展示前 30 行，完整机器评分见 CSV 模板。")
+    else:
+        lines.append("无机器评分数据")
     lines.append("")
 
     # 性能分析
@@ -291,6 +490,16 @@ def generate_markdown_report(reports, verification, output_path):
             lines.append("✓ 无错误")
             lines.append("")
 
+        duration_failures = verification.get("multi_video_duration_failures", [])
+        if duration_failures:
+            lines.append("### 时长不达标")
+            lines.append("")
+            for item in duration_failures[:10]:
+                lines.append(f"- {item['path']} ({item['duration_sec']:.3f}s)")
+            if len(duration_failures) > 10:
+                lines.append(f"... 还有 {len(duration_failures) - 10} 个时长不达标视频")
+            lines.append("")
+
         if all_warnings:
             lines.append("### 警告")
             lines.append("")
@@ -314,7 +523,8 @@ def generate_markdown_report(reports, verification, output_path):
         latest = reports[0]
         status = latest.get("status", "UNKNOWN")
 
-        if status == "PASSED" and verification["valid_count"] > 0:
+        duration_ok = not verification.get("multi_video_duration_failures")
+        if status == "PASSED" and verification["valid_count"] > 0 and duration_ok:
             lines.append("✓ **测试通过** - 多视频生成功能正常工作")
             lines.append("")
             lines.append("### 验收状态")
@@ -330,6 +540,9 @@ def generate_markdown_report(reports, verification, output_path):
             lines.append(
                 f"- [x] 生成视频有效性验证 ({verification['valid_count']}/{verification['total_count']})"
             )
+            lines.append(
+                f"- [x] 多视频最小时长验证 (全部 >= {verification['min_multi_video_duration_sec']:.0f}s)"
+            )
         else:
             lines.append("✗ **测试失败** - 存在问题需要修复")
             lines.append("")
@@ -338,6 +551,10 @@ def generate_markdown_report(reports, verification, output_path):
             if latest.get("errors"):
                 for err in latest["errors"]:
                     lines.append(f"- {err}")
+            if not duration_ok:
+                lines.append(
+                    f"- 多视频输出存在 {len(verification['multi_video_duration_failures'])} 个文件低于 {verification['min_multi_video_duration_sec']:.0f} 秒"
+                )
     else:
         lines.append("无测试数据，无法得出结论")
 
@@ -371,6 +588,9 @@ def main():
     verification = verify_generated_videos(args.results_dir)
     print(f"验证了 {verification['total_count']} 个视频文件")
 
+    score_rows = load_generation_summaries(args.results_dir)
+    print(f"加载了 {len(score_rows)} 条机器评分记录")
+
     # 生成报告
     output_path = args.output
     if not output_path:
@@ -381,9 +601,15 @@ def main():
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-    generate_markdown_report(reports, verification, output_path)
+    csv_output = os.path.join(
+        args.results_dir, "test_reports", "manual_scoring_template.csv"
+    )
+    write_score_csv(score_rows, csv_output)
+
+    generate_markdown_report(reports, verification, score_rows, output_path)
 
     print(f"报告已生成：{output_path}")
+    print(f"人工评分模板已生成：{csv_output}")
 
 
 if __name__ == "__main__":

@@ -1,16 +1,21 @@
 """
 multi_video_scorer.py - 多视频兼容评分
 
-第三阶段最小版：只给最基础的兼容评分。
+当前验收重点已经不是“能不能拼出来”，而是“拼出来是否达到可交付时长”。
 评分维度：
 - 片段数量是否过多
 - 是否跨视频切太多次
-- 总长度是否太长
+- 总长度是否太短或太长
 - 文本主题是否明显跑偏（简单关键词匹配）
 """
 
 
-def score_multi_video_candidate(candidate, max_segments=5, max_duration_sec=60):
+def score_multi_video_candidate(
+    candidate,
+    max_segments=6,
+    min_duration_sec=18.0,
+    max_duration_sec=60,
+):
     """
     给多视频组合候选评分。
 
@@ -63,7 +68,11 @@ def score_multi_video_candidate(candidate, max_segments=5, max_duration_sec=60):
         score -= 0.5
 
     total_duration = sum(seg["end"] - seg["start"] for seg in segments)
-    if total_duration > max_duration_sec:
+    if total_duration < min_duration_sec:
+        penalty = min(6.0, (min_duration_sec - total_duration) * 0.35 + 1.0)
+        penalties["duration"] = -penalty
+        score -= penalty
+    elif total_duration > max_duration_sec:
         penalty = min(2.0, (total_duration - max_duration_sec) / 30.0)
         penalties["duration"] = -penalty
         score -= penalty
@@ -84,11 +93,22 @@ def score_multi_video_candidate(candidate, max_segments=5, max_duration_sec=60):
             penalties["text_coherence"] = -coherence_penalty
             score -= coherence_penalty
 
+    duration_fit = max(0, min(10, 10 + penalties["duration"] * 1.4))
+    coherence_score = max(0, min(10, 10 + penalties["text_coherence"] * 2.0))
+    switch_score = max(0, min(10, 10 + penalties["video_switch"] * 4.0))
+    structure_score = max(0, min(10, 10 + penalties["segment_count"] * 3.0))
+
     score = max(0, min(10, score))
 
     return {
         "multi_video_score": round(score, 2),
         "penalties": {k: round(v, 2) for k, v in penalties.items()},
+        "dimensions": {
+            "duration_fit": round(duration_fit, 2),
+            "cross_video_coherence": round(coherence_score, 2),
+            "switch_naturalness": round(switch_score, 2),
+            "structure_stability": round(structure_score, 2),
+        },
         "meta": {
             "segment_count": segment_count,
             "video_switch_count": video_switch_count,
@@ -120,6 +140,8 @@ def merge_multi_video_score(score, multi_video_result):
     merged = dict(score)
     merged["base_total"] = base_total
     merged["multi_video"] = multi_score
+    for key, value in multi_video_result.get("dimensions", {}).items():
+        merged[key] = value
     merged["total"] = round(new_total, 2)
 
     return merged

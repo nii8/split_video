@@ -52,6 +52,21 @@ BATCH_MIN_MULTI_VIDEO_DURATION_SEC = 18.0
 BATCH_RESULTS_DIR = "./data/batch_results"
 BATCH_LOG_FILE = "./data/batch_log.jsonl"
 
+BATCH_SINGLE_VIDEO_TARGET_PER_SOURCE = 10
+BATCH_MULTI_VIDEO_TARGET_COUNT = 100
+BATCH_MULTI_VIDEO_CANDIDATE_COUNT = 150
+
+# 时长桶概率配置。
+# 概率用于“尽量按分布采样”，实际生成数会受候选数量影响。
+BATCH_DURATION_BUCKETS = [
+    {"label": "20-30s", "min_sec": 20, "max_sec": 30, "probability": 0.12},
+    {"label": "30-45s", "min_sec": 30, "max_sec": 45, "probability": 0.18},
+    {"label": "45-60s", "min_sec": 45, "max_sec": 60, "probability": 0.30},
+    {"label": "60-90s", "min_sec": 60, "max_sec": 90, "probability": 0.20},
+    {"label": "90-120s", "min_sec": 90, "max_sec": 120, "probability": 0.12},
+    {"label": "120-300s", "min_sec": 120, "max_sec": 300, "probability": 0.08},
+]
+
 BATCH_VISUAL_ENABLE = False
 BATCH_VISUAL_TOPN = 2
 BATCH_VISUAL_SAMPLE_EVERY_SEC = 2
@@ -66,7 +81,9 @@ BATCH_MULTI_VIDEO_ENABLE = False
 
 # 测试模式：降低批量参数用于快速验证
 # 注意：生产环境请保持 False，测试时临时改为 True
+BATCH_TEST_PHASE1_COUNT = 3
+BATCH_TEST_PHASE2_COUNT = 20
 BATCH_TEST_MODE = False
 if BATCH_TEST_MODE:
-    BATCH_PHASE1_COUNT = 1
-    BATCH_PHASE2_COUNT = 1
+    BATCH_PHASE1_COUNT = BATCH_TEST_PHASE1_COUNT
+    BATCH_PHASE2_COUNT = BATCH_TEST_PHASE2_COUNT
