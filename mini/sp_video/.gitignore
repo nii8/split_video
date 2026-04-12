@@ -9,6 +9,7 @@ data/config/config.yaml
 
 # 运行产物
 data/batch_results/
+!data/batch_results/test_reports/
 data/hanbing/*/output.mp4
 data/hanbing/multi/
 

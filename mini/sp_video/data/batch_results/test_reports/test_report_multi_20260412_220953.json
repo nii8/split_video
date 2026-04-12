@@ -1,0 +1,18 @@
+{
+  "test_date": "2026-04-12T21:58:55.831476",
+  "mode": "multi",
+  "video_ids": [
+    "C1873",
+    "IMG_17501"
+  ],
+  "phases": {},
+  "generated_videos": [],
+  "errors": [],
+  "warnings": [],
+  "timings": {
+    "scan": 0.00023603439331054688,
+    "multi_video_total": 657.4882671833038
+  },
+  "total_duration": 657.4885032176971,
+  "status": "PASSED"
+}

@@ -31,6 +31,30 @@ def scan_videos(data_dir):
             videos.append((video_id, srt_path, mp4_path))
     return videos
 
+
+def scan_multi_video_sources(data_dir):
+    """
+    扫描多视频源，返回视频源列表。
+    格式：[{"video_id": "...", "video_path": "...", "srt_path": "..."}, ...]
+    """
+    sources = []
+    for video_id in os.listdir(data_dir):
+        video_dir = os.path.join(data_dir, video_id)
+        if not os.path.isdir(video_dir):
+            continue
+        srt_path = os.path.join(video_dir, f"{video_id}.srt")
+        mp4_path = os.path.join(video_dir, f"{video_id}.mp4")
+        if os.path.exists(srt_path) and os.path.exists(mp4_path):
+            sources.append(
+                {
+                    "video_id": video_id,
+                    "video_path": mp4_path,
+                    "srt_path": srt_path,
+                }
+            )
+    return sources
+
+
 def process_video(video_id, srt_path, mp4_path, logger):
     """处理单个视频的完整流程"""
     total_start = time.time()
@@ -50,7 +74,12 @@ def process_video(video_id, srt_path, mp4_path, logger):
     phase_stats["phase1_sec"] = round(time.time() - start, 2)
     if not phase1_files:
         print(f"[错误] Phase1 全部失败，跳过视频 {video_id}", file=sys.stderr)
-        logger.log_event("video_summary", video_id=video_id, total_duration_sec=round(time.time() - total_start, 2), **phase_stats)
+        logger.log_event(
+            "video_summary",
+            video_id=video_id,
+            total_duration_sec=round(time.time() - total_start, 2),
+            **phase_stats,
+        )
         return
 
     # Phase2: 多次脚本生成
@@ -62,7 +91,12 @@ def process_video(video_id, srt_path, mp4_path, logger):
     phase_stats["phase2_sec"] = round(time.time() - start, 2)
     if not phase2_files:
         print(f"[错误] Phase2 全部失败，跳过视频 {video_id}", file=sys.stderr)
-        logger.log_event("video_summary", video_id=video_id, total_duration_sec=round(time.time() - total_start, 2), **phase_stats)
+        logger.log_event(
+            "video_summary",
+            video_id=video_id,
+            total_duration_sec=round(time.time() - total_start, 2),
+            **phase_stats,
+        )
         return
 
     # Phase3: 时间轴匹配
@@ -74,7 +108,12 @@ def process_video(video_id, srt_path, mp4_path, logger):
     phase_stats["phase3_sec"] = round(time.time() - start, 2)
     if not phase3_results:
         print("[警告] Phase3 全部失败，没有有效时间序列", file=sys.stderr)
-        logger.log_event("video_summary", video_id=video_id, total_duration_sec=round(time.time() - total_start, 2), **phase_stats)
+        logger.log_event(
+            "video_summary",
+            video_id=video_id,
+            total_duration_sec=round(time.time() - total_start, 2),
+            **phase_stats,
+        )
         return
 
     # Phase4: 先按原来的规则做一轮基础评分
@@ -282,7 +321,8 @@ def process_multi_video(videos_data, logger):
                 "total_segments": len(result["segments"]),
             }
             print(
-                f"[多视频池] {video_id}: {len(result['segments'])} 个片段", file=sys.stderr
+                f"[多视频池] {video_id}: {len(result['segments'])} 个片段",
+                file=sys.stderr,
             )
         phase_stats["pool_build_sec"] = round(time.time() - start, 2)
 
@@ -376,12 +416,11 @@ def process_multi_video(videos_data, logger):
         # 准备视频源信息
         video_sources_map = {}
         for video_id, srt_path, mp4_path in videos_data:
-            video_sources_map[video_id] = {
-                "video_id": video_id,
-                "video_path": mp4_path
-            }
+            video_sources_map[video_id] = {"video_id": video_id, "video_path": mp4_path}
 
-        sources_list = [video_sources_map[vid] for vid in source_videos if vid in video_sources_map]
+        sources_list = [
+            video_sources_map[vid] for vid in source_videos if vid in video_sources_map
+        ]
 
         # 为top N个候选生成实际视频（避免生成过多文件）
         top_n_generate = 5  # 可以根据设置调整
@@ -396,8 +435,7 @@ def process_multi_video(videos_data, logger):
                 candidate_id = candidate["candidate_id"]
                 segments = candidate.get("segments", [])
                 total_duration = sum(
-                    max(0, seg.get("end", 0) - seg.get("start", 0))
-                    for seg in segments
+                    max(0, seg.get("end", 0) - seg.get("start", 0)) for seg in segments
                 )
 
                 if not segments:
@@ -410,27 +448,31 @@ def process_multi_video(videos_data, logger):
                     continue
 
                 try:
-                    print(f"[多视频] 正在生成候选 {candidate_id} (分数: {score['total']})...", file=sys.stderr)
+                    print(
+                        f"[多视频] 正在生成候选 {candidate_id} (分数: {score['total']})...",
+                        file=sys.stderr,
+                    )
 
                     # 生成多视频文件
                     output_path = generate_multi_video(
-                        sources_list,
-                        segments,
-                        video_generation_dir,
-                        candidate_id
+                        sources_list, segments, video_generation_dir, candidate_id
                     )
 
-                    generated_videos.append({
-                        "candidate_id": candidate_id,
-                        "output_path": output_path,
-                        "score": score["total"],
-                        "segment_count": len(segments),
-                        "total_duration": round(total_duration, 2),
-                    })
+                    generated_videos.append(
+                        {
+                            "candidate_id": candidate_id,
+                            "output_path": output_path,
+                            "score": score["total"],
+                            "segment_count": len(segments),
+                            "total_duration": round(total_duration, 2),
+                        }
+                    )
 
                     print(f"[多视频] 已生成: {output_path}", file=sys.stderr)
                 except Exception as e:
-                    print(f"[多视频] 生成候选 {candidate_id} 失败: {e}", file=sys.stderr)
+                    print(
+                        f"[多视频] 生成候选 {candidate_id} 失败: {e}", file=sys.stderr
+                    )
                     continue
         phase_stats["video_generate_sec"] = round(time.time() - start, 2)
 
@@ -444,7 +486,9 @@ def process_multi_video(videos_data, logger):
             json.dump(summary, f, ensure_ascii=False, indent=2)
 
         print(f"\n{'=' * 60}", file=sys.stderr)
-        print(f"多视频组合流程完成，生成 {len(generated_videos)} 个视频", file=sys.stderr)
+        print(
+            f"多视频组合流程完成，生成 {len(generated_videos)} 个视频", file=sys.stderr
+        )
         print(f"{'=' * 60}", file=sys.stderr)
         total_duration_sec = round(time.time() - total_start, 2)
         logger.log_event(
@@ -522,7 +566,12 @@ def main():
     print("批量生成完成", file=sys.stderr)
     print(f"{'=' * 60}", file=sys.stderr)
     total_duration_sec = round(time.time() - total_start, 2)
-    logger.log_event("batch_run_summary", total_duration_sec=total_duration_sec, video_count=len(videos), multi_video_enabled=getattr(settings, "BATCH_MULTI_VIDEO_ENABLE", False))
+    logger.log_event(
+        "batch_run_summary",
+        total_duration_sec=total_duration_sec,
+        video_count=len(videos),
+        multi_video_enabled=getattr(settings, "BATCH_MULTI_VIDEO_ENABLE", False),
+    )
     print(f"[BATCH TOTAL] {total_duration_sec} s", file=sys.stderr)
 
 

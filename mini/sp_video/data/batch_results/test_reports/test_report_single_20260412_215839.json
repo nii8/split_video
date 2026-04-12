@@ -1,0 +1,26 @@
+{
+  "test_date": "2026-04-12T21:53:45.842493",
+  "mode": "single",
+  "video_ids": [
+    "C1873"
+  ],
+  "phases": {},
+  "generated_videos": [
+    {
+      "path": "./data/batch_results/C1873/phase5/video_001.mp4",
+      "score": 8.5
+    }
+  ],
+  "errors": [],
+  "warnings": [],
+  "timings": {
+    "scan": 0.00024080276489257812,
+    "phase1": 82.32305312156677,
+    "phase2": 109.30115628242493,
+    "phase3": 71.31611108779907,
+    "phase4": 7.486343383789062e-05,
+    "phase5": 31.008305549621582
+  },
+  "total_duration": 293.9489417076111,
+  "status": "PASSED"
+}
