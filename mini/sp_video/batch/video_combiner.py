@@ -99,19 +99,6 @@ def build_multi_video_candidates(pools, max_candidates=20):
     """
     if len(pools) < 2:
         print("[警告] 视频池数量不足 2 个，无法生成多视频候选")
-        pool_list = list(pools.values())
-        if pool_list:
-            main_pool = pool_list[0]
-            return [
-                {
-                    "candidate_id": "C001",
-                    "segments": main_pool.get("segments", [])[:2],
-                    "main_segments": main_pool.get("segments", [])[:2],
-                    "sub_segments": [],
-                    "main_video_id": main_pool["video_id"],
-                    "sub_video_id": None,
-                }
-            ]
         return []
 
     pool_list = list(pools.values())

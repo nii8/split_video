@@ -233,6 +233,10 @@ def process_multi_video(videos_data, logger):
             print("[错误] 所有视频都没有有效片段，跳过", file=sys.stderr)
             return
 
+        if len(per_video_results) < 2:
+            print("[错误] 有效视频不足 2 个，跳过多视频生成", file=sys.stderr)
+            return
+
         pools = {}
         for result in per_video_results:
             video_id = result["video_id"]
