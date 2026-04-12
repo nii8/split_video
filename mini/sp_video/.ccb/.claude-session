@@ -1,0 +1,14 @@
+{
+  "session_id": "ai-1775959444-762364",
+  "ccb_project_id": "86430a661c74aa53039a39a6fbbd79c49baf6b50bbef1dea632b52da93747ec1",
+  "work_dir": "/home/admin/claude/sp_v3/split_video/mini/sp_video",
+  "work_dir_norm": "/home/admin/claude/sp_v3/split_video/mini/sp_video",
+  "start_dir": "/home/admin/claude/sp_v3/split_video/mini/sp_video",
+  "terminal": "tmux",
+  "active": true,
+  "started_at": "2026-03-30 21:38:45",
+  "updated_at": "2026-04-12 10:04:04",
+  "pane_id": "%5",
+  "pane_title_marker": "CCB-Claude",
+  "ended_at": "2026-04-12 10:01:44"
+}
