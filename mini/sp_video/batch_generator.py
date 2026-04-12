@@ -1,4 +1,4 @@
-﻿import os
+import os
 import sys
 import json
 import time
@@ -228,6 +228,13 @@ def process_multi_video(videos_data, logger):
     print(f"开始多视频组合流程，共 {len(videos_data)} 个视频", file=sys.stderr)
     print(f"{'=' * 60}", file=sys.stderr)
 
+    # 多视频模式下自动启用测试模式，降低 Phase1/2 次数
+    old_phase1_count = settings.BATCH_PHASE1_COUNT
+    old_phase2_count = settings.BATCH_PHASE2_COUNT
+    settings.BATCH_PHASE1_COUNT = 1
+    settings.BATCH_PHASE2_COUNT = 1
+    print(f"[多视频模式] 临时降低参数：Phase1=1, Phase2=1", file=sys.stderr)
+
     per_video_results = []
     source_videos = []
 
@@ -257,7 +264,9 @@ def process_multi_video(videos_data, logger):
             "segments": result["segments"],
             "total_segments": len(result["segments"]),
         }
-        print(f"[多视频池] {video_id}: {len(result['segments'])} 个片段", file=sys.stderr)
+        print(
+            f"[多视频池] {video_id}: {len(result['segments'])} 个片段", file=sys.stderr
+        )
 
     candidates = build_multi_video_candidates(pools, max_candidates=20)
     print(f"[多视频] 生成 {len(candidates)} 个组合候选", file=sys.stderr)
@@ -330,6 +339,14 @@ def process_multi_video(videos_data, logger):
         json.dump(summary, f, ensure_ascii=False, indent=2)
 
     print(f"[多视频] summary 已写出：{summary_path}", file=sys.stderr)
+
+    # 恢复原始 Phase1/2 参数
+    settings.BATCH_PHASE1_COUNT = old_phase1_count
+    settings.BATCH_PHASE2_COUNT = old_phase2_count
+    print(
+        f"[多视频模式] 恢复参数：Phase1={old_phase1_count}, Phase2={old_phase2_count}",
+        file=sys.stderr,
+    )
 
     # 保留原结构，当前版本不生成实际视频文件。
     # main_video_id = candidate.get("main_video_id")
