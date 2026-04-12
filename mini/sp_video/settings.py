@@ -59,7 +59,9 @@ BATCH_VISUAL_USE_LLM = False
 
 BATCH_TRANSITION_ENABLE = False
 
-BATCH_MULTI_VIDEO_ENABLE = True
+# 多视频输出仍处于验收加固阶段。
+# 默认保持关闭，只有明确需要验收或生产启用时再手动打开。
+BATCH_MULTI_VIDEO_ENABLE = False
 
 # 测试模式：降低批量参数用于快速验证
 # 注意：生产环境请保持 False，测试时临时改为 True

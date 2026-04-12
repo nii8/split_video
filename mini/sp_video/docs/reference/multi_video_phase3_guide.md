@@ -2,7 +2,13 @@
 
 ## 概述
 
-第三阶段实现了多视频组合生成功能，允许从多个视频源中提取片段并合成一个最终视频。该功能是V2三阶段路线图的最后一部分。
+第三阶段实现了多视频组合生成功能，允许从多个视频源中提取片段并合成一个最终视频。该功能是 V2 三阶段路线图的最后一部分。
+
+当前状态：
+
+- 主功能已经接入
+- 真实环境已报告生成过多视频成片
+- 但默认配置和工程化验收仍在继续加固
 
 ## 功能特点
 
@@ -17,7 +23,7 @@
 在 `settings.py` 中配置：
 
 ```python
-BATCH_MULTI_VIDEO_ENABLE = True    # 启用多视频模式
+BATCH_MULTI_VIDEO_ENABLE = False   # 默认关闭，验收或生产启用时再手动打开
 BATCH_TEST_MODE = True            # 测试模式（降低AI调用次数）
 BATCH_SCORE_THRESHOLD = 7.0       # 生成视频的最低分数阈值
 ```
@@ -51,7 +57,7 @@ data/batch_results/multi_video/
 python batch_generator.py
 ```
 
-当 `BATCH_MULTI_VIDEO_ENABLE = True` 且目录中有多个视频时，系统会自动进入多视频模式。
+当 `BATCH_MULTI_VIDEO_ENABLE = True` 且目录中有多个视频时，系统会进入多视频模式。
 
 ### 测试模式
 
@@ -60,6 +66,12 @@ python batch_generator.py
 ```python
 BATCH_TEST_MODE = True  # 降低Phase1/2调用次数，加快测试
 ```
+
+## 验收说明
+
+- 运行产物默认写到 `data/batch_results/multi_video/`
+- `generated_videos/` 与 `summary.json` 属于运行结果，不应提交到 git
+- 示例脚本只能作为手动验证入口，不能替代正式验收
 
 ## 模块说明
 
