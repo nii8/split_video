@@ -1,4 +1,4 @@
-"""
+﻿"""
 video_pool_builder.py - 单视频片段池构建
 
 第三阶段最小版：为每个视频构建自己的候选片段池。
@@ -96,6 +96,42 @@ def build_multi_video_pools(video_sources, interval_candidates_map, score_map=No
     return pools
 
 
+def srt_time_to_seconds(time_str):
+    parts = time_str.replace(",", ".").split(":")
+    hours = int(parts[0])
+    minutes = int(parts[1])
+    seconds = float(parts[2])
+    return hours * 3600 + minutes * 60 + seconds
+
+
+def keep_intervals_to_segments(video_id, keep_intervals):
+    segments = []
+    for item in keep_intervals:
+        if not item or len(item) < 2:
+            continue
+
+        time_range = item[0]
+        text = item[1]
+        if not time_range or len(time_range) < 2:
+            continue
+
+        start_str = time_range[0]
+        end_str = time_range[1]
+        if start_str is None or end_str is None:
+            continue
+
+        segments.append(
+            {
+                "video_id": video_id,
+                "start": srt_time_to_seconds(start_str),
+                "end": srt_time_to_seconds(end_str),
+                "text": text,
+            }
+        )
+
+    return segments
+
+
 if __name__ == "__main__":
     test_intervals = [
         [
@@ -116,3 +152,13 @@ if __name__ == "__main__":
         print(
             f"  - {seg['start']}-{seg['end']}: {seg['text']} (score={seg['base_score']})"
         )
+
+    test_keep_intervals = [
+        [("00:00:10,000", "00:00:20,000"), "第一段文本"],
+        [("00:00:30,000", "00:00:45,000"), "第二段文本"],
+        [(None, None), "未匹配段"],
+    ]
+    test_segments = keep_intervals_to_segments("A001", test_keep_intervals)
+    print(f"\n转换片段数量：{len(test_segments)}")
+    for seg in test_segments:
+        print(f"  - [{seg['video_id']}] {seg['start']}-{seg['end']}: {seg['text']}")
