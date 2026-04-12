@@ -62,6 +62,7 @@ BATCH_TRANSITION_ENABLE = False
 BATCH_MULTI_VIDEO_ENABLE = False
 
 # 测试模式：降低批量参数用于快速验证
+# 注意：生产环境请保持 False，测试时临时改为 True
 BATCH_TEST_MODE = False
 if BATCH_TEST_MODE:
     BATCH_PHASE1_COUNT = 1
