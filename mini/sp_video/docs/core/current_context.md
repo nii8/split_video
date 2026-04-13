@@ -9,9 +9,11 @@
 以后需要快速恢复上下文时，优先读取：
 
 1. `docs/core/current_context.md`
-2. `docs/core/total.md`
-3. `docs/core/batch_generator_v2_roadmap.md`
-4. `docs/tasks/` 下按修改时间最新、且和当前主线直接相关的任务文档
+2. `docs/core/goals.md`
+3. `docs/core/collaboration.md`
+4. `docs/core/batch_generator_v2_roadmap.md`
+5. `docs/core/rules.md`（只有涉及规则判断时才读）
+6. `docs/tasks/` 下按修改时间最新、且和当前主线直接相关的任务文档
 
 不要优先读取旧的 handoff / restart / cur 之类一次性文档。
 
@@ -230,59 +232,6 @@
 只放历史计划和已归档材料。
 
 默认不作为当前推进依据。
-
----
-
-## 协作规则
-
-### 分工
-
-- Codex：代码实现、主线判断、任务编排
-- Opencode：真实运行环境测试、验证、小修
-- Claude / claude-cli：架构评估、风险判断
-- 用户：给目标、转发任务、贴结果截图、在方向变化时拍板
-
-### 高优先级规则
-
-如果代码已经写完并准备交给别人测试：
-
-**必须先 push，再进入测试协作。**
-
-没有 push，就不算交付。
-
-### 默认协作顺序
-
-1. Codex 读取最新代码和最新核心文档
-2. Codex 判断当前主矛盾
-3. Codex 直接写代码，或生成给 Opencode 的下一轮任务
-4. Opencode `git pull origin main`
-5. Opencode 只做测试、验证、小修
-6. Opencode 更新 `docs/tasks/` 里的对应 report
-7. Opencode `git commit` + `git push origin main`
-8. 用户贴结果
-9. Codex 再继续下一轮
-
----
-
-## 固定提示词设计原则
-
-固定提示词的目标不是短，而是稳定、可复用、低歧义。
-
-以后固定提示词必须明确：
-
-- 唯一项目根目录
-- 文档读取优先级
-- “按修改时间找最新相关任务”的规则
-- 输出格式
-- 允许做什么
-- 不允许做什么
-
-否则容易出现：
-
-- 读错旧任务
-- 读错目录
-- 写错 report 位置
-- 基于历史状态误推进
 
 ---
 

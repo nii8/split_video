@@ -1,6 +1,6 @@
 # 启动提示词
 
-先以 `C:\codex\sp_v1\split_video\mini\sp_video` 为唯一项目根目录。
+先以 `./sp_video` 为唯一项目根目录。
 
 你的目标不是全量巡检所有非代码文件，而是用最小必要上下文恢复当前主线，然后继续推进。
 
@@ -17,13 +17,11 @@
 恢复上下文时，严格按下面顺序读取：
 
 1. `docs/core/current_context.md`
-2. `docs/core/total.md`
-3. `docs/core/user_working_style.md`
-4. `docs/core/user_query_analysis.md`
-5. `docs/core/batch_generator_v2_roadmap.md`
-6. `docs/core/project_mainline_2026_04_12.md`
-7. `docs/core/coding_style_preference.md`
-8. `docs/tasks/` 下按修改时间最新、且与当前主线直接相关的任务文档、实现报告、测试报告、根因报告
+2. `docs/core/goals.md`
+3. `docs/core/collaboration.md`
+4. `docs/core/batch_generator_v2_roadmap.md`
+5. `docs/core/rules.md`（只有涉及规则判断时才读）
+6. `docs/tasks/` 下按修改时间最新、且与当前主线直接相关的任务文档、实现报告、测试报告、根因报告
 
 ## 补充读取规则
 
