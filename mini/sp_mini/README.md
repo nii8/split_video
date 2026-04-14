@@ -1,88 +1,68 @@
-# sp_video — 智能视频自动剪辑 CLI
+# sp_mini
 
-把一段长视频 + 字幕文件，自动剪成一条抖音爆款短视频。
+当前目录只保留了“单视频压缩到约 5 分钟”所需的最小运行集。
 
----
+## 目标
 
-## 安装
+处理 `data/video/` 下的单视频素材。
 
-```bash
-pip install openai pyyaml
-# ffmpeg 需要系统级安装
-sudo apt install ffmpeg   # Ubuntu
-brew install ffmpeg       # macOS
-```
+要求：
 
----
+1. 每个视频对应同名 `.mp4` 和 `.srt`
+2. 尽量压缩到约 5 分钟
+3. 优先删除废话、口头禅、重复表达、无信息增量内容
+4. 尽量保留观点、结论、关键解释、转折、冲突、案例、方法、结果
+5. 必须尽量保持原时间顺序和叙事顺序
 
-## 配置
+## 当前保留的核心文件
 
-在 `data/config/config.yaml` 中填写 API Key：
+- `main.py`
+- `settings.py`
+- `scripts/run_single_video_5min_batch.py`
+- `make_time/`
+- `make_video/`
+- `batch/logger.py`
+- `data/config/config.yaml`
+- `docs/core/session_context_2026_04_14.md`
 
-```yaml
-DEEPSEEK_API_KEY: sk-xxxxxxxxxxxxxxxx
-```
+## 运行方式
 
-也可以用环境变量覆盖：
-
-```bash
-export DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
-```
-
----
-
-## 使用
+在目录 `C:\codex\sp_v1\split_video\mini\sp_mini` 下执行：
 
 ```bash
-python main.py
+python scripts/run_single_video_5min_batch.py
 ```
 
-运行后按提示输入：
+可选参数：
 
-```
-请输入视频路径 (.mp4): C1873.mp4
-请输入字幕路径 (.srt): C1873.srt
-```
-
-每个阶段结束后，按回车确认继续。提示词默认即可，输入 `e` 可手动编辑。
-
-输出文件示例：`C1873_cli_2026_03_21_09_01_22.mp4`
-
----
-
-## 目录结构
-
-```
-sp_video/
-├── main.py           # 入口，4 个阶段的主流程
-├── settings.py       # 全局配置（API Key、路径等）
-├── make_time/
-│   └── step2.py      # get_keep_intervals：字幕匹配 → 时间片段
-├── make_video/
-│   └── step3.py      # cut_video_main：按片段切割视频
-└── data/
-    └── config/
-        └── config.yaml   # API Key 配置文件
+```bash
+python scripts/run_single_video_5min_batch.py --video_dir data/video --output_dir data/output_5min --log_root data/run_logs/single_video_5min
 ```
 
----
+## 输入输出
 
-## 流程
+- 输入字幕目录：`data/video`
+- 输入视频目录：`data/video`
+- 默认输出目录：`data/output_5min`
+- 默认日志目录：`data/run_logs/single_video_5min/<run_id>/`
 
-```
-输入: video.mp4 + video.srt
-        │
-        ▼
-[Phase 1] LLM 从字幕中筛选高价值句子
-        │
-        ▼
-[Phase 2] LLM 按爆款叙事逻辑重组脚本
-        │
-        ▼
-[Phase 3] 字幕时间轴匹配 → 生成时间片段列表
-        │
-        ▼
-[Phase 4] ffmpeg 按片段剪切 → 输出 output.mp4
-```
+每次运行会生成：
 
-每个阶段之间有手动确认，可以检查中间结果再继续。
+- `run.log`
+- `events.jsonl`
+- `prompt_snapshot.json`
+- `run_summary.json`
+
+每个视频目录会生成：
+
+- `step1.txt`
+- `step2.txt`
+- `intervals.json`
+- `summary.json`
+- `*_5min.mp4`
+
+## 说明
+
+1. 当前目录不依赖 `sp_video` 目录。
+2. 当前项目已经清理掉测试、实验、多视频和无关文档，只保留本轮任务所需代码。
+3. 如果重新运行前要清理旧结果，优先删除 `data/output_5min` 和对应日志目录，不要删除 `data/video` 与 `data/config/config.yaml`。
