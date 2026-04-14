@@ -1,0 +1,686 @@
+#!/usr/bin/env python3
+"""
+skill.py — sp_video 技能入口
+
+OpenClaw 通过子进程调用，所有标准输出为 JSON，进度日志输出到 stderr。
+
+用法：
+    python skill.py list
+    python skill.py start --video_id 7Q3A0006
+    python skill.py phase2 --video_id 7Q3A0006 [--prompt_file /tmp/p.txt]
+    python skill.py generate --video_id 7Q3A0006
+
+─────────────────────────────────────────────────────────────────────────────
+OpenClaw 典型使用场景（龙虾侧串联逻辑，skill.py 本身无需改动）
+─────────────────────────────────────────────────────────────────────────────
+
+【场景A ★★★★★】一键全自动生成
+    用户："生成视频 7Q3A0006"
+    龙虾：list → start --clear_cache → phase2 --force → generate → 返回脚本文字 + 链接
+    注意：start 默认带 --clear_cache，自动清除旧脚本缓存，保证每次生成不重复。
+          step1.txt 可复用；step2.txt 和 intervals.json 每次重建。
+          除非用户明确要求"保留缓存"或"使用上次的"，才不带 --clear_cache。
+
+【场景B ★★★★】多脚本竞选，用户挑一个
+    用户："生成 7Q3A0006 脚本 3 次，我来选"
+    龙虾：start → phase2 --force（×3，每次保存 JSON 响应到内存）
+          → 展示 3 份片段列表 → 用户选第 N 个
+          → 将第 N 次响应中的 intervals 写回 intervals.json → generate
+    备份：不需要备份文件。每次 phase2 的 JSON stdout 含完整 intervals 数组，
+          龙虾内存即备份，选定后写回文件再 generate 即可。
+
+【场景C ★★★】风格定制（励志版 / 干货版 / 搞笑版）
+    用户："生成 7Q3A0006 的励志版视频"
+    龙虾：根据风格词构造 prompt → 写入 /tmp/prompt_xxx.txt
+          → start → phase2 --prompt_file /tmp/prompt_xxx.txt → generate
+
+【场景D ★★★】按主题关键词找视频再生成
+    用户："找一个讲创业失败的，生成励志短视频"
+    龙虾：list（获取所有 summary）→ LLM 分析匹配最近的 video_id
+          → start → phase2 --prompt_file（聚焦该主题）→ generate
+
+【场景E ★★★★】迭代优化已生成的视频
+    用户："上次视频太啰嗦，重剪一个简洁版"
+    龙虾：构造精简 prompt → phase2 --force --prompt_file → generate
+          step1.txt 始终复用，只重跑 Phase2+3+4。
+
+【场景F ★★】批量处理所有新视频
+    用户："把今天新上传的视频都处理一遍"
+    龙虾：list（过滤 new > 0 的 video_id）
+          → 对每个 id 串行：start → phase2 --force → generate
+          → 汇报所有链接
+
+【场景G】先看脚本再决定要不要生成
+    用户："先看看 7Q3A0006 会剪什么内容"
+    龙虾：start → phase2 --force（停在 need_confirm_intervals，展示片段列表）
+          → 用户确认后 → generate
+─────────────────────────────────────────────────────────────────────────────
+"""
+
+import os
+import sys
+import json
+import argparse
+import subprocess
+import time
+from datetime import datetime
+
+# 确保可以 import 同目录模块
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import settings
+from main import run_phase1, run_phase2, run_phase3, run_phase4, PHASE2_PROMPT
+
+# ── 日志文件配置 ───────────────────────────────────────────────────────────────
+LOG_FILE = '/tmp/skill.log'
+
+def log_to_file(msg):
+    """同时输出到 stderr 和日志文件"""
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    log_line = f'[{timestamp}] {msg}'
+    with open(LOG_FILE, 'a', encoding='utf-8') as f:
+        f.write(log_line + '\n')
+
+# ── 常量 ──────────────────────────────────────────────────────────────────────
+OSS_SOURCE_BASE = "oss://kaixin-v/hanbing/2026"
+OSS_DEST_BASE   = "oss://kaixin1109/hanbing/2026"
+VIDEO_URL_BASE  = "http://video.kaixin.wiki/hanbing/2026"
+DATA_DIR        = "./data/hanbing"
+CACHE_FILE      = "./data/video_cache.json"
+STATE_DIR       = "./data/skill_state"
+
+
+# ── 输出工具 ──────────────────────────────────────────────────────────────────
+def out(data):
+    """输出 JSON 并退出（success→0，error→1）"""
+    log(f'[EXIT] status={data.get("status")}')
+    log_to_file(f'[EXIT] status={data.get("status")}')
+    print(json.dumps(data, ensure_ascii=False, indent=2))
+    sys.exit(0 if data.get('status') != 'error' else 1)
+
+
+def log(msg):
+    """进度日志输出到 stderr，不影响 JSON stdout"""
+    print(f'[skill] {msg}', file=sys.stderr, flush=True)
+    log_to_file(f'[skill] {msg}')
+
+
+# ── 缓存 / 状态工具 ───────────────────────────────────────────────────────────
+def load_cache():
+    if os.path.exists(CACHE_FILE):
+        with open(CACHE_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
+
+
+def save_cache(cache):
+    os.makedirs(os.path.dirname(CACHE_FILE), exist_ok=True)
+    with open(CACHE_FILE, 'w', encoding='utf-8') as f:
+        json.dump(cache, f, ensure_ascii=False, indent=2)
+
+
+def load_state(video_id):
+    state_file = os.path.join(STATE_DIR, video_id, 'state.json')
+    if os.path.exists(state_file):
+        with open(state_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
+
+
+def save_state(video_id, state):
+    state_dir = os.path.join(STATE_DIR, video_id)
+    os.makedirs(state_dir, exist_ok=True)
+    with open(os.path.join(state_dir, 'state.json'), 'w', encoding='utf-8') as f:
+        json.dump(state, f, ensure_ascii=False, indent=2)
+
+
+# ── OSS 工具 ──────────────────────────────────────────────────────────────────
+def oss_ls():
+    """列出 OSS 上的文件路径列表"""
+    log('[START] oss_ls 开始查询 OSS')
+    log_to_file('[START] oss_ls 开始查询 OSS')
+    try:
+        result = subprocess.run(
+            ['ossutil', 'ls', OSS_SOURCE_BASE],
+            capture_output=True, text=True,
+            timeout=120  # 添加超时
+        )
+        log(f'[END] oss_ls 完成，返回代码: {result.returncode}')
+        log_to_file(f'[END] oss_ls 完成，返回代码: {result.returncode}')
+    except subprocess.TimeoutExpired:
+        log('[ERROR] oss_ls 超时（60秒）')
+        log_to_file('[ERROR] oss_ls 超时（60秒）')
+        out({'status': 'error', 'message': 'ossutil ls 超时'})
+    except Exception as e:
+        log(f'[ERROR] oss_ls 异常: {e}')
+        log_to_file(f'[ERROR] oss_ls 异常: {e}')
+        out({'status': 'error', 'message': f'ossutil 查询失败: {e}'})
+    lines = result.stdout.strip().split('\n')
+    # 跳过第一行（头部），从每行提取 oss:// 开头的路径
+    paths = []
+    for l in lines[1:]:
+        # ossutil 输出格式：每行末尾是 oss://... 路径
+        idx = l.find('oss://')
+        if idx != -1:
+            path = l[idx:].strip()
+            if not path.endswith('/'):  # 过滤目录
+                paths.append(path)
+    return paths
+
+
+def parse_oss_paths(paths):
+    """
+    从 OSS 路径列表提取成对的 mp4+srt 信息。
+
+    路径层级不固定，但 video_id 始终是倒数第二段，filename 是最后一段：
+      oss://kaixin-v/hanbing/2026/{month}/[.../{batch}/]{video_id}/{filename}
+    返回：{video_id: {month, batch, oss_base, mp4_name, srt_name, has_mp4, has_srt}}
+    """
+    prefix = OSS_SOURCE_BASE.rstrip('/')
+    video_map = {}
+
+    for path in paths:
+        if not path.endswith('.mp4') and not path.endswith('.srt'):
+            continue
+        rel = path[len(prefix):]
+        parts = rel.strip('/').split('/')
+        if len(parts) < 2:
+            continue
+        filename = parts[-1]
+        video_id = filename.rsplit('.', 1)[0]  # 始终用文件名作为 video_id
+        month = parts[0] if len(parts) >= 1 else ''
+        batch = '/'.join(p for p in parts[1:-2] if p != 'ff') if len(parts) > 2 else ''
+        oss_base = path[:path.rfind('/')]
+
+        if video_id not in video_map:
+            video_map[video_id] = {
+                'month': month,
+                'batch': batch,
+                'oss_base': oss_base,
+                'has_mp4': False,
+                'has_srt': False,
+            }
+        if filename.endswith('.mp4'):
+            video_map[video_id]['has_mp4'] = True
+            video_map[video_id]['mp4_name'] = filename
+        elif filename.endswith('.srt'):
+            video_map[video_id]['has_srt'] = True
+            video_map[video_id]['srt_name'] = filename
+
+    # 只保留 mp4 和 srt 都存在的
+    return {vid: info for vid, info in video_map.items()
+            if info['has_mp4'] and info['has_srt']}
+
+
+def oss_download(oss_path, local_path):
+    """从 OSS 下载单个文件（强制覆盖）"""
+    log(f'[START] oss_download: {oss_path} -> {local_path}')
+    log_to_file(f'[START] oss_download: {oss_path} -> {local_path}')
+    start_time = time.time()
+    os.makedirs(os.path.dirname(local_path), exist_ok=True)
+    try:
+        subprocess.run(['ossutil', 'cp', oss_path, local_path, '-f'], check=True, timeout=1200)
+        elapsed = time.time() - start_time
+        log(f'[END] oss_download 完成，耗时 {elapsed:.1f}秒')
+        log_to_file(f'[END] oss_download 完成，耗时 {elapsed:.1f}秒')
+    except subprocess.TimeoutExpired:
+        log(f'[ERROR] oss_download 超时（600秒）: {oss_path}')
+        log_to_file(f'[ERROR] oss_download 超时（600秒）: {oss_path}')
+        raise Exception(f'下载超时（600秒）: {oss_path}')
+    except Exception as e:
+        log(f'[ERROR] oss_download 失败: {oss_path}, error: {e}')
+        log_to_file(f'[ERROR] oss_download 失败: {oss_path}, error: {e}')
+        raise
+
+
+def oss_upload(local_path, oss_dest):
+    """上传文件到 OSS（强制覆盖）"""
+    log(f'[START] oss_upload: {local_path} -> {oss_dest}')
+    log_to_file(f'[START] oss_upload: {local_path} -> {oss_dest}')
+    start_time = time.time()
+    try:
+        subprocess.run(['ossutil', 'cp', local_path, oss_dest, '-f'], check=True, timeout=1200)
+        elapsed = time.time() - start_time
+        log(f'[END] oss_upload 完成，耗时 {elapsed:.1f}秒')
+        log_to_file(f'[END] oss_upload 完成，耗时 {elapsed:.1f}秒')
+    except subprocess.TimeoutExpired:
+        log(f'[ERROR] oss_upload 超时（600秒）')
+        log_to_file(f'[ERROR] oss_upload 超时（600秒）')
+        raise Exception('上传超时（600秒）')
+    except Exception as e:
+        log(f'[ERROR] oss_upload 失败: {e}')
+        log_to_file(f'[ERROR] oss_upload 失败: {e}')
+        raise
+
+
+# ── LLM 工具 ─────────────────────────────────────────────────────────────────
+def generate_summary(srt_path):
+    """用 LLM 为 SRT 字幕生成 2-3 句话摘要"""
+    from openai import OpenAI
+    log(f'[START] generate_summary: {srt_path}')
+    log_to_file(f'[START] generate_summary: {srt_path}')
+    start_time = time.time()
+    try:
+        with open(srt_path, 'r', encoding='utf-8') as f:
+            srt_content = f.read()
+
+        # 只取前 4000 字符，避免超 token
+        srt_snippet = srt_content[:4000]
+
+        client = OpenAI(api_key=settings.BAILIAN_API_KEY, base_url='https://coding.dashscope.aliyuncs.com/v1')
+        resp = client.chat.completions.create(
+            model='qwen3.5-plus',
+            messages=[
+                {'role': 'system', 'content': '你是视频内容分析师，请用 2-3 句话概括视频主要内容，语言简洁。'},
+                {'role': 'user', 'content': f'以下是视频字幕，请生成简短摘要：\n\n{srt_snippet}'},
+            ],
+            timeout=120
+        )
+        elapsed = time.time() - start_time
+        log(f'[END] generate_summary 完成，耗时 {elapsed:.1f}秒')
+        log_to_file(f'[END] generate_summary 完成，耗时 {elapsed:.1f}秒')
+        return resp.choices[0].message.content.strip()
+    except Exception as e:
+        elapsed = time.time() - start_time
+        log(f'[ERROR] generate_summary 失败，耗时 {elapsed:.1f}秒，错误: {e}')
+        log_to_file(f'[ERROR] generate_summary 失败，耗时 {elapsed:.1f}秒，错误: {e}')
+        raise
+
+
+# ── 子命令实现 ────────────────────────────────────────────────────────────────
+def cmd_list(_args):
+    """查询 OSS 视频列表，生成/更新摘要缓存"""
+    log('查询 OSS 文件列表...')
+    try:
+        paths = oss_ls()
+    except Exception as e:
+        out({'status': 'error', 'message': f'ossutil 查询失败: {e}'})
+
+    oss_videos = parse_oss_paths(paths)
+    log(f'OSS 上找到 {len(oss_videos)} 个成对视频')
+
+    cache = load_cache()
+
+    # 删除 OSS 已不存在的条目
+    removed = [vid for vid in list(cache.keys()) if vid not in oss_videos]
+    for vid in removed:
+        del cache[vid]
+        log(f'已从缓存移除已删除视频: {vid}')
+
+    # 新视频：下载 SRT → 生成摘要
+    new_count = 0
+    for video_id, info in oss_videos.items():
+        if video_id not in cache:
+            log(f'新视频 {video_id}，下载 SRT 并生成摘要...')
+            try:
+                local_dir = os.path.join(DATA_DIR, video_id)
+                local_srt = os.path.join(local_dir, info['srt_name'])
+                if not os.path.exists(local_srt):
+                    oss_download(f"{info['oss_base']}/{info['srt_name']}", local_srt)
+                summary = generate_summary(local_srt)
+            except Exception as e:
+                summary = f'摘要生成失败: {e}'
+                log(f'警告: {video_id} 摘要生成失败: {e}')
+
+            cache[video_id] = {
+                'oss_base':  info['oss_base'],
+                'month':     info['month'],
+                'batch':     info['batch'],
+                'mp4_name':  info['mp4_name'],
+                'srt_name':  info['srt_name'],
+                'summary':   summary,
+                'cached_at': datetime.now().strftime('%Y-%m-%d'),
+            }
+            new_count += 1
+        else:
+            # 更新元数据（路径可能变化）
+            cache[video_id].update({
+                'oss_base': info['oss_base'],
+                'month':    info['month'],
+                'batch':    info['batch'],
+                'mp4_name': info['mp4_name'],
+                'srt_name': info['srt_name'],
+            })
+
+    save_cache(cache)
+
+    videos = [
+        {'id': vid, 'summary': info['summary'], 'month': info['month'], 'batch': info['batch']}
+        for vid, info in cache.items()
+    ]
+
+    out({
+        'status':  'success',
+        'total':   len(videos),
+        'new':     new_count,
+        'removed': len(removed),
+        'videos':  videos,
+    })
+
+
+def cmd_start(args):
+    """下载视频文件 + 自动执行 Phase1 + 返回 Phase2 提示词"""
+    video_id = args.video_id
+    cache = load_cache()
+
+    if video_id not in cache:
+        out({'status': 'error', 'message': f'视频 {video_id} 不在缓存中，请先运行 list'})
+
+    info = cache[video_id]
+    local_dir = os.path.join(DATA_DIR, video_id)
+    local_srt = os.path.join(local_dir, info['srt_name'])
+    local_mp4 = os.path.join(local_dir, info['mp4_name'])
+
+    # 下载文件（已存在则跳过）
+    if not os.path.exists(local_srt):
+        log(f'下载 SRT: {info["srt_name"]}')
+        oss_download(f"{info['oss_base']}/{info['srt_name']}", local_srt)
+
+    if not os.path.exists(local_mp4):
+        log(f'下载 MP4: {info["mp4_name"]}（可能较慢）')
+        oss_download(f"{info['oss_base']}/{info['mp4_name']}", local_mp4)
+
+    # 初始化 state
+    state = {
+        'video_id':   video_id,
+        'srt_path':   local_srt,
+        'video_path': local_mp4,
+        'oss_month':  info['month'],
+        'oss_batch':  info['batch'],
+        'phase':      1,
+    }
+    save_state(video_id, state)
+
+    # Phase1 自动执行（非交互）
+    state_dir = os.path.join(STATE_DIR, video_id)
+    log('[START] Phase1 执行（LLM 筛选字幕）')
+    log_to_file(f'[START] Phase1 video_id={video_id}')
+    phase1_start = time.time()
+    try:
+        result1 = run_phase1(local_srt, output_dir=state_dir, interactive=False)
+        elapsed = time.time() - phase1_start
+        log(f'[END] Phase1 完成，耗时 {elapsed:.1f}秒')
+        log_to_file(f'[END] Phase1 完成，耗时 {elapsed:.1f}秒')
+    except Exception as e:
+        elapsed = time.time() - phase1_start
+        log(f'[ERROR] Phase1 失败，耗时 {elapsed:.1f}秒，错误: {e}')
+        log_to_file(f'[ERROR] Phase1 失败，耗时 {elapsed:.1f}秒，错误: {e}')
+        out({'status': 'error', 'stage': 1, 'message': str(e)})
+
+    # 模式 A 一键全自动：清除旧缓存，保证不重复
+    if args.clear_cache:
+        step2_path = os.path.join(state_dir, 'step2.txt')
+        intervals_path = os.path.join(state_dir, 'intervals.json')
+        if os.path.exists(step2_path):
+            os.remove(step2_path)
+            log('已清除 step2 缓存（模式 A 全自动）')
+        if os.path.exists(intervals_path):
+            os.remove(intervals_path)
+            log('已清除 intervals 缓存（模式 A 全自动）')
+
+    state['phase'] = 2
+    save_state(video_id, state)
+
+    preview = result1[:600] + '...' if len(result1) > 600 else result1
+
+    out({
+        'status':         'need_confirm_prompt',
+        'video_id':       video_id,
+        'message':        'Phase1 完成。以下是 Phase2 的默认提示词，可直接确认或修改后通过 --prompt_file 传入。',
+        'default_prompt': PHASE2_PROMPT,
+        'phase1_preview': preview,
+    })
+
+
+def cmd_phase2(args):
+    """Phase2（LLM 重组脚本）+ Phase3（AI 字幕匹配）→ 返回时间序列"""
+    video_id = args.video_id
+    state = load_state(video_id)
+
+    if not state:
+        out({'status': 'error', 'message': f'找不到 {video_id} 的处理状态，请先运行 start'})
+    if state.get('phase', 0) < 2:
+        out({'status': 'error', 'message': 'Phase1 尚未完成，请先运行 start'})
+
+    state_dir = os.path.join(STATE_DIR, video_id)
+    step2_path = os.path.join(state_dir, 'step2.txt')
+    has_cache = os.path.exists(step2_path)
+
+    # 读取自定义提示词（可选）
+    custom_prompt = None
+    if args.prompt_file:
+        if not os.path.exists(args.prompt_file):
+            out({'status': 'error', 'message': f'提示词文件不存在: {args.prompt_file}'})
+        with open(args.prompt_file, 'r', encoding='utf-8') as f:
+            custom_prompt = f.read().strip()
+        log(f'使用自定义提示词（{len(custom_prompt)} 字符）')
+
+    # 有缓存且未明确指定行为 → 询问用户是否复用
+    if has_cache and not custom_prompt and not args.use_cache and not args.force:
+        with open(step2_path, 'r', encoding='utf-8') as f:
+            cached_script = f.read()
+        preview = cached_script[:500] + '...' if len(cached_script) > 500 else cached_script
+        out({
+            'status':   'need_confirm_regen',
+            'video_id': video_id,
+            'message':  '已有上次生成的脚本缓存，是否直接使用？',
+            'cached_script_preview': preview,
+            'hint':     '使用缓存: phase2 --video_id ... --use_cache  |  重新生成: phase2 --video_id ... --force',
+        })
+
+    # --force：清除旧 step2 缓存（用户明确要重新生成）
+    # 自定义 prompt：先备份旧 step2，失败时可恢复
+    step2_backup = None
+    if args.force and has_cache:
+        os.remove(step2_path)
+        log('已清除 step2 缓存，重新生成')
+    elif custom_prompt and has_cache:
+        with open(step2_path, 'r', encoding='utf-8') as f:
+            step2_backup = f.read()
+        os.remove(step2_path)
+        log('已备份 step2 缓存，使用自定义提示词重新生成')
+
+    # 读取 step1 结果
+    step1_path = os.path.join(state_dir, 'step1.txt')
+    if not os.path.exists(step1_path):
+        out({'status': 'error', 'message': 'step1.txt 不存在，请重新运行 start'})
+    with open(step1_path, 'r', encoding='utf-8') as f:
+        result1 = f.read()
+
+    # Phase2
+    log('[START] Phase2 执行（LLM 脚本重组）')
+    log_to_file(f'[START] Phase2 video_id={video_id}')
+    phase2_start = time.time()
+    try:
+        import main as main_module
+        if custom_prompt:
+            original_prompt = main_module.PHASE2_PROMPT
+            main_module.PHASE2_PROMPT = custom_prompt
+        result2 = run_phase2(result1, output_dir=state_dir, interactive=False)
+        if custom_prompt:
+            main_module.PHASE2_PROMPT = original_prompt
+        elapsed = time.time() - phase2_start
+        log(f'[END] Phase2 完成，耗时 {elapsed:.1f}秒')
+        log_to_file(f'[END] Phase2 完成，耗时 {elapsed:.1f}秒')
+    except Exception as e:
+        elapsed = time.time() - phase2_start
+        log(f'[ERROR] Phase2 失败，耗时 {elapsed:.1f}秒，错误: {e}')
+        log_to_file(f'[ERROR] Phase2 失败，耗时 {elapsed:.1f}秒，错误: {e}')
+        out({'status': 'error', 'stage': 2, 'message': str(e)})
+
+    # Phase3：清除旧 intervals 缓存
+    intervals_path = os.path.join(state_dir, 'intervals.json')
+    if os.path.exists(intervals_path):
+        os.remove(intervals_path)
+
+    log('[START] Phase3 执行（AI 字幕时间轴匹配）')
+    log_to_file(f'[START] Phase3 video_id={video_id}')
+    phase3_start = time.time()
+    try:
+        keep_intervals = run_phase3(state['srt_path'], result2, output_dir=state_dir)
+        elapsed = time.time() - phase3_start
+        log(f'[END] Phase3 完成，耗时 {elapsed:.1f}秒，匹配 {len(keep_intervals) if keep_intervals else 0} 个片段')
+        log_to_file(f'[END] Phase3 完成，耗时 {elapsed:.1f}秒，匹配 {len(keep_intervals) if keep_intervals else 0} 个片段')
+    except Exception as e:
+        elapsed = time.time() - phase3_start
+        log(f'[ERROR] Phase3 失败，耗时 {elapsed:.1f}秒，错误: {e}')
+        log_to_file(f'[ERROR] Phase3 失败，耗时 {elapsed:.1f}秒，错误: {e}')
+        # Phase3 异常：恢复 step2 备份（仅自定义 prompt 场景）
+        if step2_backup is not None:
+            with open(step2_path, 'w', encoding='utf-8') as f:
+                f.write(step2_backup)
+            log('Phase3 异常，已恢复 step2 缓存')
+            log_to_file('Phase3 异常，已恢复 step2 缓存')
+        out({'status': 'error', 'stage': 3, 'message': str(e)})
+
+    if not keep_intervals:
+        # 自定义 prompt 匹配失败：恢复旧 step2 缓存
+        if step2_backup is not None:
+            if os.path.exists(step2_path):
+                os.remove(step2_path)
+            with open(step2_path, 'w', encoding='utf-8') as f:
+                f.write(step2_backup)
+            log('自定义提示词匹配失败，已恢复原 step2 缓存')
+        out({'status': 'error', 'stage': 3, 'message': '未匹配到任何时间片段，请检查字幕或调整脚本'})
+
+    state['phase'] = 3
+    save_state(video_id, state)
+
+    intervals_display = [
+        {
+            'index': i + 1,
+            'start': item[0][0],
+            'end':   item[0][1],
+            'text':  str(item[1])[:80],
+        }
+        for i, item in enumerate(keep_intervals)
+    ]
+
+    out({
+        'status':    'need_confirm_intervals',
+        'video_id':  video_id,
+        'message':   f'已匹配 {len(keep_intervals)} 个片段，确认后调用 generate 生成视频。',
+        'count':     len(keep_intervals),
+        'intervals': intervals_display,
+    })
+
+
+def cmd_generate(args):
+    """Phase4（ffmpeg 剪辑）→ 上传 OSS → 返回视频 URL"""
+    video_id = args.video_id
+    state = load_state(video_id)
+
+    if not state:
+        out({'status': 'error', 'message': f'找不到 {video_id} 的处理状态，请先运行 start'})
+    if state.get('phase', 0) < 3:
+        out({'status': 'error', 'message': 'Phase3 尚未完成，请先运行 phase2'})
+
+    state_dir = os.path.join(STATE_DIR, video_id)
+    intervals_path = os.path.join(state_dir, 'intervals.json')
+
+    if not os.path.exists(intervals_path):
+        out({'status': 'error', 'message': 'intervals.json 不存在，请重新运行 phase2'})
+
+    with open(intervals_path, 'r', encoding='utf-8') as f:
+        keep_intervals = json.load(f)
+
+    # Phase4：生成视频
+    log('[START] Phase4 执行（ffmpeg 剪辑）')
+    log_to_file(f'[START] Phase4 video_id={video_id}，片段数={len(keep_intervals)}')
+    phase4_start = time.time()
+    log(f'执行 Phase4（ffmpeg 剪辑 {len(keep_intervals)} 个片段）...')
+    try:
+        output_path = run_phase4(state['video_path'], keep_intervals, video_id)
+        elapsed = time.time() - phase4_start
+        log(f'[END] Phase4 视频生成完成，耗时 {elapsed:.1f}秒')
+        log_to_file(f'[END] Phase4 视频生成完成，耗时 {elapsed:.1f}秒')
+    except Exception as e:
+        elapsed = time.time() - phase4_start
+        log(f'[ERROR] Phase4 失败，耗时 {elapsed:.1f}秒，错误: {e}')
+        log_to_file(f'[ERROR] Phase4 失败，耗时 {elapsed:.1f}秒，错误: {e}')
+        out({'status': 'error', 'stage': 4, 'message': str(e)})
+
+    if not output_path or not os.path.exists(output_path):
+        out({'status': 'error', 'stage': 4, 'message': '视频文件生成失败'})
+
+    # 构造 OSS 路径和公网 URL
+    filename  = os.path.basename(output_path)
+    month     = state['oss_month']
+    batch     = state['oss_batch']
+    mid = f"{batch}/" if batch else ""
+    oss_dest  = f"{OSS_DEST_BASE}/{month}/{mid}{video_id}/{filename}"
+    video_url = f"{VIDEO_URL_BASE}/{month}/{mid}{video_id}/{filename}"
+
+    # 上传到 OSS
+    log(f'上传到 OSS: {oss_dest}')
+    try:
+        oss_upload(output_path, oss_dest)
+    except Exception as e:
+        out({'status': 'error', 'stage': 4, 'message': f'OSS 上传失败: {e}'})
+
+    log(f'完成！URL: {video_url}')
+
+    out({
+        'status':   'success',
+        'video_id': video_id,
+        'filename': filename,
+        'oss_path': oss_dest,
+        'url':      video_url,
+        'message':  '视频生成并上传成功！',
+    })
+
+
+# ── 主入口 ────────────────────────────────────────────────────────────────────
+def main():
+    # 初始化日志文件
+    log_to_file('=' * 50)
+    log('[START] skill.py 进程启动')
+    log(f'[CMD] {" ".join(sys.argv)}')
+    log_to_file(f'[CMD] {" ".join(sys.argv)}')
+
+    parser = argparse.ArgumentParser(
+        description='sp_video 技能 — OpenClaw 调用接口',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    sub = parser.add_subparsers(dest='cmd', required=True)
+
+    # list
+    sub.add_parser('list', help='查询 OSS 视频列表并更新摘要缓存')
+
+    # start
+    p_start = sub.add_parser('start', help='开始处理视频（Phase1，自动执行）')
+    p_start.add_argument('--video_id', required=True, help='视频编号，如 7Q3A0006')
+    p_start.add_argument('--clear_cache', action='store_true',
+                         help='清除旧脚本缓存，保证生成不重复（模式 A 全自动默认启用）')
+
+    # phase2
+    p_p2 = sub.add_parser('phase2', help='生成脚本并匹配时间轴（Phase2+3）')
+    p_p2.add_argument('--video_id', required=True, help='视频编号')
+    p_p2.add_argument('--prompt_file', default=None,
+                      help='自定义 Phase2 提示词文件路径（不传则使用默认提示词）')
+    p_p2.add_argument('--use_cache', action='store_true',
+                      help='直接使用上次缓存的脚本，跳过 Phase2 重新生成')
+    p_p2.add_argument('--force', action='store_true',
+                      help='强制重新执行 Phase2，忽略缓存')
+
+    # generate
+    p_gen = sub.add_parser('generate', help='生成视频并上传 OSS（Phase4）')
+    p_gen.add_argument('--video_id', required=True, help='视频编号')
+
+    args = parser.parse_args()
+
+    log(f'[DISPATCH] 命令: {args.cmd}, video_id: {getattr(args, "video_id", "N/A")}')
+    log_to_file(f'[DISPATCH] 命令: {args.cmd}, video_id: {getattr(args, "video_id", "N/A")}')
+
+    if args.cmd == 'list':
+        cmd_list(args)
+    elif args.cmd == 'start':
+        cmd_start(args)
+    elif args.cmd == 'phase2':
+        cmd_phase2(args)
+    elif args.cmd == 'generate':
+        cmd_generate(args)
+
+
+if __name__ == '__main__':
+    main()
