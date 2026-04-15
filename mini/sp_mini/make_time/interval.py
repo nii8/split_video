@@ -1,6 +1,7 @@
 """
 make_time/interval.py — 时间区间分组、合并
 """
+from batch.output import warn
 
 
 def is_consecutive(lst):
@@ -46,7 +47,7 @@ def get_start_end_t_id_list(zimu, id_list):
             unit_zimu = unit_zimu + ' ' + zimu_str
     if start_t and end_t:
         return [start_t, end_t, id_list, unit_zimu]
-    print(f'get_start_end_t_id_list error: start={start_t}, end={end_t}')
+    warn(f'get_start_end_t_id_list error: start={start_t}, end={end_t}')
     return [None, None, None, None]
 
 

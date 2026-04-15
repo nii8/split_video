@@ -1,6 +1,5 @@
 import json
 import os
-import sys
 from datetime import datetime
 
 
@@ -22,7 +21,6 @@ class BatchLogger:
         }
         entry.update(kwargs)
         line = json.dumps(entry, ensure_ascii=False)
-        print(line, file=sys.stderr)
         with open(self.log_file, "a", encoding="utf-8") as f:
             f.write(line + "\n")
         return entry
@@ -34,7 +32,6 @@ class BatchLogger:
         }
         entry.update(kwargs)
         line = json.dumps(entry, ensure_ascii=False)
-        print(line, file=sys.stderr)
         with open(self.log_file, "a", encoding="utf-8") as f:
             f.write(line + "\n")
         return entry

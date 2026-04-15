@@ -2,13 +2,14 @@
 make_time/ai_caller.py — AI 调用封装 + JSON 解析 + 调试输出保存
 """
 import json
+
 import settings
+from batch.output import debug, error
+
 from .chat import ask_ai
 from .prompts import build_check_similarity_prompt, build_find_subtitle_prompt
 from .interval import is_consecutive, group_consecutive_ids, get_start_end_t_id_list
 
-
-# ── JSON 解析 ────────────────────────────────────────────────────────────────
 
 def parse_ai_json(result):
     """
@@ -17,10 +18,11 @@ def parse_ai_json(result):
     """
     try:
         start = result.index('{')
-        end   = len(result) - result[::-1].index('}') - 1
+        end = len(result) - result[::-1].index('}') - 1
         return json.loads(result[start:end + 1])
     except (ValueError, json.JSONDecodeError) as e:
-        print(f'parse_ai_json failed: {e} | raw={result}')
+        error(f'parse_ai_json failed: {e}')
+        debug(f'parse_ai_json raw={result}')
         return None
 
 
@@ -29,12 +31,10 @@ def save_result_to_json(result, filename="keep_intervals.json"):
     try:
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(result, f, ensure_ascii=False, indent=4)
-        print(f"已写入 {filename}")
+        debug(f"已写入 {filename}")
     except Exception as e:
-        print(f"写入 {filename} 失败: {e}")
+        error(f"写入 {filename} 失败: {e}")
 
-
-# ── AI 调用封装 ──────────────────────────────────────────────────────────────
 
 def call_ai_match(ask, zimu, yuan_text, model_name):
     """
@@ -42,35 +42,34 @@ def call_ai_match(ask, zimu, yuan_text, model_name):
     验证通过则按连续分组返回区间列表；未通过返回 [[None, None, None, None]]。
     """
     raw = ask_ai(ask, mod=model_name, json_format=True)
-    print(f'AI match result: {raw}')
+    debug(f'AI match result: {raw}')
     result = parse_ai_json(raw)
     if not result:
         return [[None, None, None, None]]
 
-    id_list     = result.get('id_list', [])
+    id_list = result.get('id_list', [])
     result_text = result.get('text', '')
 
-    # 去掉参考时间后缀再比较
     clean_yuan = yuan_text.split(' (')[0] if ' (' in yuan_text else yuan_text
 
     check_ask = build_check_similarity_prompt(clean_yuan, result_text)
-    raw2      = ask_ai(check_ask, mod=model_name, json_format=True)
-    print(f'AI similarity result: {raw2}')
-    result2   = parse_ai_json(raw2)
+    raw2 = ask_ai(check_ask, mod=model_name, json_format=True)
+    debug(f'AI similarity result: {raw2}')
+    result2 = parse_ai_json(raw2)
     if not result2:
         return [[None, None, None, None]]
 
     probability = result2.get('probability', 0)
     if is_consecutive(id_list):
         probability += settings.AI_CONSECUTIVE_BONUS
-        print(f'consecutive bonus applied, probability={probability}')
+        debug(f'consecutive bonus applied, probability={probability}')
 
     if probability > settings.AI_CHECK_THRESHOLD:
-        print(f'probability ok => {probability}')
+        debug(f'probability ok => {probability}')
         return [get_start_end_t_id_list(zimu, g) for g in group_consecutive_ids(id_list)]
-    else:
-        print(f'probability ng => {probability} | yuan_text={yuan_text}')
-        return [[None, None, None, None]]
+
+    debug(f'probability ng => {probability} | yuan_text={yuan_text}')
+    return [[None, None, None, None]]
 
 
 def call_ai_find(ask, yuan_text, model_name):
@@ -78,19 +77,19 @@ def call_ai_find(ask, yuan_text, model_name):
     降级阶段：全文语义搜索，返回 id_list（不做相似度截断）。
     """
     raw = ask_ai(ask, mod=model_name, json_format=True)
-    print(f'AI find ask={ask}')
-    print(f'AI find result={raw}')
+    debug(f'AI find ask={ask}')
+    debug(f'AI find result={raw}')
     result = parse_ai_json(raw)
     if not result:
         return None
 
-    id_list     = result.get('id_list')
+    id_list = result.get('id_list')
     result_text = result.get('text', '')
-    check_ask   = build_check_similarity_prompt(yuan_text, result_text)
-    raw2        = ask_ai(check_ask, mod=model_name, json_format=True)
-    result2     = parse_ai_json(raw2)
+    check_ask = build_check_similarity_prompt(yuan_text, result_text)
+    raw2 = ask_ai(check_ask, mod=model_name, json_format=True)
+    result2 = parse_ai_json(raw2)
     probability = result2.get('probability', 0) if result2 else 0
-    print(f'find probability => {probability}')
+    debug(f'find probability => {probability}')
     return id_list
 
 
@@ -102,6 +101,6 @@ def find_intervals_by_ai(yuan_text, zimu, model_name):
         f'{zid}\n{s} --> {e}\n{txt}\n\n\n'
         for zid, (s, e), txt in zimu
     )
-    ask     = build_find_subtitle_prompt(yuan_text, zimu_union_text)
+    ask = build_find_subtitle_prompt(yuan_text, zimu_union_text)
     id_list = call_ai_find(ask, yuan_text, model_name)
     return id_list

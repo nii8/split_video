@@ -4,7 +4,9 @@ import time
 from datetime import datetime
 import sys
 import bisect
+
 import settings
+from batch.output import error, info
 
 
 def srt_time_to_seconds(srt_time):
@@ -66,18 +68,15 @@ def cut_video_filter_complex(input_path, output_path, segments):
     ]
 
     try:
-        print(
-            f"[FFMPEG] Executing: {' '.join(cmd[:5])}... (truncated for readability)",
-            file=sys.stderr,
-        )
+        info(f"[FFMPEG] Executing: {' '.join(cmd[:5])}... (truncated for readability)")
         start = time.time()
         subprocess.run(cmd, check=True)
         duration = time.time() - start
-        print(f"[FFMPEG] Completed successfully: {output_path}", file=sys.stderr)
-        print(f"[FFMPEG] Duration: {round(duration, 2)} s", file=sys.stderr)
+        info(f"[FFMPEG] Completed successfully: {output_path}")
+        info(f"[FFMPEG] Duration: {round(duration, 2)} s")
         return round(duration, 2)
     except subprocess.CalledProcessError as e:
-        print(f"[FFMPEG] Error occurred: {e}", file=sys.stderr)
+        error(f"[FFMPEG] Error occurred: {e}")
         raise
 
 
@@ -98,12 +97,8 @@ def time_str_to_seconds(time_str):
 
 def cut_video_main(keep_intervals, video_path, video_id, user_id):
     t1 = time.time()
-    print(
-        f"[CUT_VIDEO_MAIN] Starting video cut for video_id: {video_id}, user_id: {user_id}",
-        file=sys.stderr,
-    )
+    info(f"[CUT_VIDEO_MAIN] Starting video cut for video_id: {video_id}, user_id: {user_id}")
 
-    # Filter out invalid intervals where interval[0] is (None, None)
     valid_intervals = [
         (interval[0][0], interval[0][1])
         for interval in keep_intervals
@@ -111,29 +106,22 @@ def cut_video_main(keep_intervals, video_path, video_id, user_id):
     ]
 
     if not valid_intervals:
-        print("[CUT_VIDEO_MAIN] No valid intervals to process", file=sys.stderr)
-        # Handle empty list case - return original video path or raise exception
+        error("[CUT_VIDEO_MAIN] No valid intervals to process")
         raise ValueError("No valid intervals provided for video cutting")
 
-    # Convert SRT formatted times to seconds
     segments = [
         (srt_time_to_seconds(start), srt_time_to_seconds(end))
         for start, end in valid_intervals
     ]
 
-    import os
-
-    # Build output path: data/hanbing/{video_id}/output.mp4
     output_dir = os.path.join("data", "hanbing", str(video_id))
     os.makedirs(output_dir, exist_ok=True)
     output_path = os.path.join(output_dir, "output.mp4")
 
-    # Call the new filter complex function
     ffmpeg_duration_sec = cut_video_filter_complex(video_path, output_path, segments)
 
     t2 = time.time()
-    print(
-        f"[CUT_VIDEO_MAIN] Completed in {round(t2 - t1, 2)} s, ffmpeg={ffmpeg_duration_sec}s, output: {output_path}",
-        file=sys.stderr,
+    info(
+        f"[CUT_VIDEO_MAIN] Completed in {round(t2 - t1, 2)} s, ffmpeg={ffmpeg_duration_sec}s, output: {output_path}"
     )
     return output_path
