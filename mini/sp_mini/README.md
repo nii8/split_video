@@ -73,6 +73,46 @@ python scripts/run_single_video_5min_batch.py --video_dir data/video --output_di
 - 短版默认输出目录：`data/output_short`
 - 5 分钟版默认输出目录：`data/output_5min`
 
+## 新环境启动前必须补齐
+
+当前仓库不是完全开箱即跑。全新环境在正式运行前，至少要补齐下面几项：
+
+### 1. 配置文件
+
+需要准备：
+
+- `data/config/config.yaml`
+
+其中至少要有可用的：
+
+- `BAILIAN_API_KEY`
+- `DEEPSEEK_API_KEY`
+
+如果没有这个文件，代码虽然能启动，但一到 LLM 调用就会失败。
+
+### 2. 原始视频文件
+
+当前仓库里提交的是 `data/video/*.srt`，没有提交同名 `.mp4`。
+
+正式运行前，必须把对应视频放到：
+
+- `data/video/*.mp4`
+
+要求是每个 `.srt` 都有同名 `.mp4`，否则批处理脚本会直接报错。
+
+### 3. 运行依赖
+
+全新环境还需要安装或准备：
+
+- Python 依赖：`openai`、`PyYAML`
+- 系统命令：`ffmpeg`、`ffprobe`
+
+结论：
+
+1. 代码主链路已经可编译
+2. 但 fresh 环境不能直接跑通
+3. 必须先补 `config.yaml`、`data/video/*.mp4` 和运行依赖
+
 每次运行会生成：
 
 - `run.log`
