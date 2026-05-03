@@ -1,0 +1,1509 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>弟子规学习周 - 第3周：泛爱众</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            width: 100%;
+            min-height: 100vh;
+            overflow-x: hidden;
+            overflow-y: auto;
+            background: linear-gradient(135deg, #f3e7e9 0%, #e3eeff 100%);
+            font-family: 'Comic Sans MS', '微软雅黑', sans-serif;
+            position: relative;
+        }
+        
+        /* 云端花朵飘动 */
+        .flower-cloud {
+            position: absolute;
+            border-radius: 50%;
+            opacity: 0.7;
+            z-index: 1;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="%23ffffff"/></svg>') no-repeat center center;
+            background-size: cover;
+        }
+        
+        .flower-cloud-1 {
+            width: 220px;
+            height: 90px;
+            top: 100px;
+            left: 180px;
+            animation: floatFlowerCloud 35s infinite linear;
+        }
+        
+        .flower-cloud-2 {
+            width: 160px;
+            height: 70px;
+            top: 180px;
+            right: 280px;
+            animation: floatFlowerCloud 40s infinite linear reverse;
+        }
+        
+        .flower-cloud-3 {
+            width: 190px;
+            height: 80px;
+            bottom: 180px;
+            left: 380px;
+            animation: floatFlowerCloud 45s infinite linear;
+        }
+        
+        @keyframes floatFlowerCloud {
+            0% { transform: translateX(-100px); }
+            100% { transform: translateX(calc(100vw + 100px)); }
+        }
+        
+        /* 飘落的花瓣 */
+        .falling-petal {
+            position: absolute;
+            opacity: 0.8;
+            z-index: 2;
+            animation: fallPetal linear forwards;
+        }
+        
+        @keyframes fallPetal {
+            to {
+                transform: translateY(100vh) rotate(360deg);
+                opacity: 0;
+            }
+        }
+        
+        /* 主容器 */
+        .main-container {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            z-index: 10;
+            padding-bottom: 100px;
+        }
+        
+        /* 顶部区域 */
+        .header {
+            height: 180px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 60px;
+            position: relative;
+            flex-shrink: 0;
+        }
+        
+        .title-area {
+            display: flex;
+            align-items: center;
+            gap: 30px;
+        }
+        
+        .title-icon {
+            font-size: 60px;
+            color: #ff9e6d;
+            animation: riseSun 2s infinite alternate;
+        }
+        
+        @keyframes riseSun {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-15px); }
+        }
+        
+        .title-text {
+            font-size: 55px;
+            color: #5a3d8a;
+            text-shadow: 5px 5px 0 #ffd166;
+            letter-spacing: 3px;
+        }
+        
+        .week-indicator {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .week-dot {
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            background-color: #ffccf9;
+            border: 3px solid #ff6b8b;
+        }
+        
+        .week-dot.active {
+            background-color: #ff6b8b;
+            transform: scale(1.2);
+            box-shadow: 0 0 12px #ff6b8b;
+        }
+        
+        /* 内容区域 - 垂直布局 */
+        .content-area {
+            display: flex;
+            flex-direction: column;
+            padding: 0 40px 40px 40px;
+            gap: 35px;
+            flex: 1;
+        }
+        
+        /* 圣人爷爷区域 */
+        .garden-area {
+            background: linear-gradient(135deg, #fff9e6 0%, #ffeaa7 100%);
+            border-radius: 40px;
+            border: 12px solid #ffd166;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.1);
+            position: relative;
+            overflow: hidden;
+            min-height: 600px;
+            width: 100%;
+        }
+        
+        .garden-title {
+            font-size: 45px;
+            color: #7c5cc4;
+            margin-bottom: 25px;
+            text-align: center;
+            background-color: #ffeaa7;
+            padding: 15px 40px;
+            border-radius: 50px;
+            border: 6px dashed #ffbc6c;
+            position: relative;
+        }
+        
+        .garden-content {
+            display: flex;
+            width: 100%;
+            gap: 35px;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 30px;
+        }
+        
+        .garden-image-container {
+            flex: 0 0 300px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .garden-image {
+            width: 320px;
+            height: 320px;
+            background: linear-gradient(to bottom, #ffeaa7, #fdcb6e);
+            border-radius: 50%;
+            border: 15px solid #ffd166;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            box-shadow: 0 12px 35px rgba(0,0,0,0.15);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        
+        .garden-image::before {
+            content: "👴";
+            font-size: 180px;
+            position: relative;
+            top: -15px;
+        }
+        
+        .garden-image::after {
+            content: "";
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 85px;
+            background-color: #7c5cc4;
+            border-radius: 50%;
+        }
+        
+        .sunlight-effect {
+            position: absolute;
+            top: 120px;
+            right: 60px;
+            width: 100px;
+            height: 100px;
+            background: radial-gradient(circle, #ffff99 0%, #ffd166 70%, transparent 100%);
+            border-radius: 50%;
+            animation: warmGlow 3s infinite alternate;
+            z-index: 3;
+        }
+        
+        @keyframes warmGlow {
+            0% { transform: scale(1); opacity: 0.8; }
+            100% { transform: scale(1.15); opacity: 0.95; }
+        }
+        
+        .garden-scenes {
+            flex: 1;
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+            gap: 40px;
+        }
+        
+        .garden-scenes .image-placeholder {
+            width: 42%;
+            height: 42%;
+            object-fit: contain;
+            flex-shrink: 0;
+        }       
+        
+        .seed-button {
+            background: linear-gradient(135deg, #ff9e6d, #ff6b8b);
+            color: white;
+            border: none;
+            border-radius: 60px;
+            padding: 28px 60px;
+            font-size: 36px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 20px;
+            transition: all 0.3s;
+            box-shadow: 0 12px 28px rgba(255, 107, 139, 0.4);
+            width: 80%;
+        }
+        
+        .seed-button:hover {
+            transform: translateY(-10px);
+            background: linear-gradient(135deg, #ff6b8b, #ff9e6d);
+            box-shadow: 0 18px 40px rgba(255, 107, 139, 0.6);
+        }
+        
+        /* 四个爱心花园区域 */
+        .gardens-area {
+            display: flex;
+            flex-direction: column;
+            gap: 35px;
+            width: 100%;
+        }
+        
+        .garden-card {
+            background-color: rgba(255, 255, 255, 0.92);
+            border-radius: 40px;
+            border: 12px solid;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.12);
+            position: relative;
+            overflow: hidden;
+            min-height: 550px;
+        }
+        
+        .card-respect {
+            border-color: #ffd166;
+        }
+        
+        .card-friendship {
+            border-color: #ff9e6d;
+        }
+        
+        .card-care {
+            border-color: #ff9e6d; /* 类似关怀的暖橙色 */
+        }
+        
+        .card-nature {
+            border-color: #c68dff; /* 自然紫色 */
+        }
+        
+        .card-title {
+            font-size: 42px;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 18px;
+        }
+        
+        .card-title-respect {
+            color: #7c5cc4;
+        }
+        
+        .card-title-friendship {
+            color: #7c5cc4;
+        }
+        
+        .card-title-care {
+            color: #ff6b8b;
+        }
+        
+        .card-title-nature {
+            color: #7c5cc4;
+        }
+        
+        .card-icon {
+            font-size: 55px;
+        }
+        
+        .scene-container {
+            flex: 1;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .actor {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .actor-img {
+            width: 160px;
+            height: 160px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 70px;
+            box-shadow: 0 12px 28px rgba(0,0,0,0.18);
+        }
+        
+        .actor-name {
+            font-size: 32px;
+            color: #5a3d8a;
+            background-color: #e6f7ff;
+            padding: 10px 25px;
+            border-radius: 30px;
+        }
+        
+        .garden-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 35px;
+            margin-top: 30px;
+        }
+        
+        .garden-btn {
+            background-color: #9dffb0;
+            border: 6px solid #7c5cc4;
+            border-radius: 40px;
+            padding: 25px 40px;
+            font-size: 32px;
+            color: #5a3d8a;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            transition: all 0.3s;
+        }
+        
+        .garden-btn:hover {
+            transform: translateY(-8px);
+            background-color: #8ac6ff;
+            color: white;
+        }
+
+        .journey-area {
+            display: flex;
+            flex-direction: column;
+            gap: 32px;
+            width: 100%;
+        }
+
+        .journey-unit {
+            background: rgba(255, 255, 255, 0.93);
+            border-radius: 40px;
+            border: 12px solid;
+            padding: 28px;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.12);
+        }
+
+        .journey-friendship {
+            border-color: #ff9e6d;
+        }
+
+        .journey-care {
+            border-color: #ffb086;
+        }
+
+        .journey-nature {
+            border-color: #c68dff;
+        }
+
+        .journey-head {
+            margin-bottom: 22px;
+        }
+
+        .journey-title {
+            font-size: 40px;
+            color: #6f54b8;
+            margin-bottom: 10px;
+        }
+
+        .journey-subtitle {
+            font-size: 22px;
+            line-height: 1.65;
+            color: #6c5a7b;
+            background: #fff8d8;
+            border-radius: 24px;
+            padding: 14px 18px;
+        }
+
+        .journey-steps {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 24px;
+        }
+
+        .story-step {
+            background: linear-gradient(180deg, #fffdf4 0%, #fff3e1 100%);
+            border-radius: 28px;
+            border: 6px solid #ffd166;
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            min-height: 640px;
+        }
+
+        .story-step.step-purple {
+            border-color: #c68dff;
+        }
+
+        .story-step.step-pink {
+            border-color: #ff9ec4;
+        }
+
+        .story-step.step-green {
+            border-color: #92e6a7;
+        }
+
+        .step-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 100px;
+            padding: 8px 0;
+            border-radius: 999px;
+            background: #7c5cc4;
+            color: white;
+            font-size: 22px;
+        }
+
+        .step-question {
+            font-size: 26px;
+            line-height: 1.5;
+            color: #5a3d8a;
+            min-height: 78px;
+        }
+
+        .step-text {
+            font-size: 21px;
+            line-height: 1.7;
+            color: #6c5a7b;
+        }
+
+        .step-image-frame {
+            border-radius: 24px;
+            overflow: hidden;
+            border: 6px solid #ffe08a;
+            background: #fff;
+            height: 360px;
+            box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.7);
+        }
+
+        .step-image-frame img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .focus-left img {
+            object-position: left center;
+        }
+
+        .focus-center img {
+            object-position: center center;
+        }
+
+        .focus-right img {
+            object-position: right center;
+        }
+
+        .step-illustration {
+            height: 320px;
+            border-radius: 24px;
+            border: 6px solid #ffe08a;
+            background: linear-gradient(180deg, #fff8ea 0%, #fef2ff 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            text-align: center;
+            padding: 16px;
+        }
+
+        .scene-label {
+            font-size: 22px;
+            color: #7c5cc4;
+            background: rgba(255, 255, 255, 0.75);
+            padding: 8px 16px;
+            border-radius: 999px;
+        }
+
+        .step-emoji {
+            font-size: 70px;
+            line-height: 1;
+        }
+
+        .step-actions {
+            margin-top: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .story-step.step-result .step-image-frame,
+        .story-step.step-result .step-illustration {
+            border-color: #ffc7dd;
+        }
+
+        .step-action-btn {
+            border: none;
+            border-radius: 20px;
+            padding: 16px 18px;
+            font-size: 24px;
+            line-height: 1.4;
+            cursor: pointer;
+            color: #5a3d8a;
+            background: #dff8e5;
+            border: 4px solid #7c5cc4;
+            transition: all 0.25s;
+        }
+
+        .step-action-btn.alt {
+            background: #fff0d9;
+        }
+
+        .step-action-btn:hover {
+            transform: translateY(-4px);
+            background: #8ac6ff;
+            color: white;
+        }
+
+        .step-result {
+            background: linear-gradient(180deg, #fef9d7 0%, #ffe6f2 100%);
+        }
+        
+        /* 爱心之源区域 - 所有花朵汇总 */
+        .source-area {
+            background: linear-gradient(135deg, #ffeaa7, #fab1a0);
+            border-radius: 40px;
+            border: 12px solid #ff9e6d;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.1);
+            position: relative;
+            overflow: hidden;
+            min-height: 600px;
+            width: 100%;
+        }
+        
+        .source-title {
+            font-size: 45px;
+            color: #7c5cc4;
+            margin-bottom: 25px;
+            text-align: center;
+            background-color: #ffccf9;
+            padding: 15px 40px;
+            border-radius: 50px;
+            border: 6px solid #ff6b8b;
+        }
+        
+        .source-content {
+            display: flex;
+            flex: 1;
+            gap: 35px;
+        }
+        
+        .garden-bed {
+            flex: 1;
+            background: linear-gradient(to bottom, #c8e6c9, #a5d6a7);
+            border-radius: 30px;
+            border: 12px solid #d50000;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding: 30px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .flowers-container {
+            width: 100%;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: flex-start;
+            gap: 15px;
+            min-height: 150px;
+        }
+        
+        .flower {
+            width: 55px;
+            height: 55px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            animation: flowerGrow 0.6s ease-out;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.2);
+            position: relative;
+            transition: transform 0.3s;
+        }
+        
+        .flower:hover {
+            transform: scale(1.1);
+        }
+        
+        .sun-flower {
+            background-color: #ffd166;
+        }
+        
+        .rose-flower {
+            background-color: #ff9e6d;
+        }
+        
+        .carnation-flower {
+            background-color: #ffccf9;
+        }
+        
+        .lavender-flower {
+            background-color: #c68dff;
+        }
+        
+        @keyframes flowerGrow {
+            0% { transform: translateY(-120px) rotate(-180deg); opacity: 0; }
+            100% { transform: translateY(0) rotate(0); opacity: 1; }
+        }
+        
+        .source-controls {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+        
+        .flower-btn {
+            background: linear-gradient(135deg, #ff9e6d, #c68dff);
+            color: white;
+            border: none;
+            border-radius: 40px;
+            padding: 28px;
+            font-size: 32px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 18px;
+            transition: all 0.3s;
+        }
+        
+        .flower-btn:hover {
+            background: linear-gradient(135deg, #c68dff, #ff9e6d);
+            transform: translateY(-5px);
+        }
+        
+        .counter {
+            text-align: center;
+            font-size: 45px;
+            color: #ff6b8b;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+        
+        /* 底部区域 */
+        .footer {
+            height: 100px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(255, 255, 255, 0.85);
+            border-top: 8px solid #ffd166;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+        }
+        
+        .footer-text {
+            font-size: 32px;
+            color: #7c5cc4;
+        }
+        
+        /* 对话泡泡 */
+        .speech-bubble {
+            position: absolute;
+            background-color: white;
+            padding: 25px;
+            border-radius: 30px;
+            border: 6px solid #ff9e6d;
+            font-size: 28px;
+            color: #5a3d8a;
+            max-width: 400px;
+            z-index: 20;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            display: none;
+        }
+        
+        .bubble-1 {
+            top: 180px;
+            right: 220px;
+        }
+        
+        .bubble-2 {
+            bottom: 180px;
+            left: 220px;
+        }
+        
+        /* 漂浮爱心 */
+        .floating-heart {
+            position: absolute;
+            font-size: 40px;
+            opacity: 0;
+            z-index: 5;
+            animation: floatHeart 10s linear infinite;
+        }
+        
+        @keyframes floatHeart {
+            0% {
+                transform: translateY(100vh) rotate(0deg);
+                opacity: 0;
+            }
+            10% {
+                opacity: 1;
+            }
+            90% {
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-100px) rotate(360deg);
+                opacity: 0;
+            }
+        }
+        
+        /* 图片占位符 */
+        .image-placeholder {
+            width: 80%;
+            height: 80%;
+            background-color: #f0f0f0;
+            border-radius: 20px;
+            border: 5px dashed #aaa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #888;
+            font-size: 28px;
+        }
+        
+        /* 响应式调整 */
+        @media (max-width: 1200px) {
+            .header {
+                padding: 0 30px;
+            }
+            
+            .title-text {
+                font-size: 45px;
+            }
+            
+            .garden-content, .source-content {
+                flex-direction: column;
+                gap: 28px;
+            }
+            
+            .garden-image {
+                width: 260px;
+                height: 260px;
+            }
+            
+            .garden-image::before {
+                font-size: 140px;
+            }
+            
+            .seed-button, .garden-btn, .flower-btn {
+                font-size: 28px;
+                padding: 20px 30px;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .header {
+                height: auto;
+                flex-direction: column;
+                padding: 20px;
+                gap: 20px;
+            }
+            
+            .title-text {
+                font-size: 36px;
+            }
+            
+            .content-area {
+                padding: 20px;
+                gap: 30px;
+            }
+            
+            .garden-title, .source-title {
+                font-size: 32px;
+                padding: 10px 20px;
+            }
+            
+            .card-title {
+                font-size: 32px;
+            }
+            
+            .garden-buttons {
+                flex-direction: column;
+                gap: 20px;
+            }
+            
+            .scene-container {
+                flex-direction: column;
+                gap: 30px;
+            }
+            
+            .actor-img {
+                width: 130px;
+                height: 130px;
+                font-size: 50px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 云端花朵背景 -->
+    <div class="flower-cloud flower-cloud-1"></div>
+    <div class="flower-cloud flower-cloud-2"></div>
+    <div class="flower-cloud flower-cloud-3"></div>
+    
+    <!-- 飘落花瓣效果 -->
+    <div id="fallingPetals"></div>
+    
+    <!-- 漂浮爱心 -->
+    <div id="floatingFlowers"></div>
+    
+    <!-- 对话泡泡 -->
+    <div class="speech-bubble bubble-1" id="bubble1">
+        先看一看，画面里谁最需要你关心？
+    </div>
+    
+    <div class="speech-bubble bubble-2" id="bubble2">
+        别急着选答案，先想一想：如果你在现场，会怎么做？
+    </div>
+    
+    <!-- 主容器 -->
+    <div class="main-container">
+        <!-- 顶部区域 -->
+        <div class="header">
+            <div class="title-area">
+                <div class="title-icon">🌻</div>
+                <div class="title-text">弟子规学习周</div>
+            </div>
+            
+            <div class="week-indicator">
+                <div class="week-dot"></div>
+                <div class="week-dot"></div>
+                <div class="week-dot active"></div>
+                <div class="week-dot"></div>
+            </div>
+        </div>
+        
+        <!-- 内容区域 - 垂直排列 -->
+        <div class="content-area">
+            <!-- 第一部分：圣人爷爷花园 -->
+            <div class="garden-area">
+                <div class="garden-title">先看看这两个小故事</div>
+
+                <div class="garden-content">
+                    <div class="garden-image-container">
+                        <div class="garden-image">
+                            <div class="sunlight-effect"></div>
+                        </div>
+                    </div>
+                    <div class="garden-scenes">
+                        <img src="imgs/new-sage-grandpa.png"
+                             alt="圣人爷爷和小朋友、小动物在一起"
+                             class="image-placeholder">
+
+                        <img src="imgs/new-class-scene.png"
+                             alt="女先生和小朋友一起想问题"
+                             class="image-placeholder">
+                    </div>
+                </div>
+
+                <button class="seed-button" onclick="plantSeed()">
+                    <i class="fas fa-seedling"></i> 准备开始想一想
+                </button>
+            </div>
+
+            <div class="journey-area">
+                <div class="journey-unit journey-friendship">
+                    <div class="journey-head">
+                        <div class="journey-title">第一点：先看见那个一个人的小朋友</div>
+                        <div class="journey-subtitle">有时候，不用做很大的事。只是热闹的时候，你看见了那个还没有走过去的小朋友。</div>
+                    </div>
+                    <div class="journey-steps">
+                        <div class="story-step">
+                            <div class="step-badge">第 1 步</div>
+                            <div class="step-question">教室里很热闹，几个孩子围在一起笑。窗边那个新来的孩子，没有走过去。</div>
+                            <div class="step-image-frame focus-center">
+                                <img src="imgs/03_story_compassion_1.png" alt="热闹教室里，窗边站着一个有些拘谨的新同学">
+                            </div>
+                            <div class="step-text">先别急着选。先看看：有人在热闹里，也有人站在旁边。</div>
+                        </div>
+                        <div class="story-step step-pink">
+                            <div class="step-badge">第 2 步</div>
+                            <div class="step-question">你再看一眼，也许会发现，他不是古怪，只是有一点紧张，不知道怎么走过去。</div>
+                            <div class="step-image-frame focus-center">
+                                <img src="imgs/03_story_compassion_2.png" alt="新同学轻轻抓着书包，看起来有点不好意思">
+                            </div>
+                            <div class="step-text">这样一看，他就不只是“新来的”，也是一个会不好意思的小朋友。</div>
+                        </div>
+                        <div class="story-step step-green">
+                            <div class="step-badge">第 3 步</div>
+                            <div class="step-question">如果站在那儿的是你，你会想让别人围过来看，还是想有人轻轻走到你身边？</div>
+                            <div class="step-image-frame focus-center">
+                                <img src="imgs/03_story_compassion_2.png" alt="一个孩子慢慢靠近窗边的新同学">
+                            </div>
+                            <div class="step-text">也许只是轻轻问一句：“你要不要和我们一起玩？”</div>
+                            <div class="step-actions">
+                                <button class="step-action-btn" onclick="actCompassion('approach')">我愿意轻轻走过去</button>
+                                <button class="step-action-btn alt" onclick="actCompassion('pass')">我先装作没看见</button>
+                            </div>
+                        </div>
+                        <div class="story-step step-result">
+                            <div class="step-badge">第 4 步</div>
+                            <div class="step-question">后来没有发生什么大事，只是窗边那个孩子，慢慢笑了一下。</div>
+                            <div class="step-image-frame focus-center">
+                                <img src="imgs/03_story_compassion_3.png" alt="新同学被温柔接住后露出了笑容">
+                            </div>
+                            <div class="step-text">你没有说很多话，可他没有刚才那么孤单了。</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="journey-unit journey-care">
+                    <div class="journey-head">
+                        <div class="journey-title">第二点：自己也喜欢的时候，还愿不愿意让一下</div>
+                        <div class="journey-subtitle">“让一下”不是因为你不喜欢，而是因为你喜欢的时候，也看见了别人也喜欢。</div>
+                    </div>
+                    <div class="journey-steps">
+                        <div class="story-step">
+                            <div class="step-badge">第 1 步</div>
+                            <div class="step-question">桌上只剩最后一个蓝色风车了。你喜欢蓝色，旁边那个孩子也一直在看它。</div>
+                            <div class="step-image-frame focus-center">
+                                <img src="imgs/03_story_yield_1.png" alt="两个小朋友一起看着桌上最后一个蓝色风车">
+                            </div>
+                            <div class="step-text">这次有点难，因为你也是真的很喜欢。</div>
+                        </div>
+                        <div class="story-step step-pink">
+                            <div class="step-badge">第 2 步</div>
+                            <div class="step-question">你再看他一眼，会发现他也一直看着那个蓝风车，眼睛亮亮的。</div>
+                            <div class="step-image-frame focus-center">
+                                <img src="imgs/03_story_yield_2.png" alt="另一个孩子望着蓝色风车，眼里满是喜欢">
+                            </div>
+                            <div class="step-text">原来不只是“我想要”，他也很想要。</div>
+                        </div>
+                        <div class="story-step step-green">
+                            <div class="step-badge">第 3 步</div>
+                            <div class="step-question">这时候最难的，不是知不知道答案，而是心里那一点舍不得，能不能慢慢放下来。</div>
+                            <div class="step-image-frame focus-center">
+                                <img src="imgs/03_story_yield_2.png" alt="一个孩子想了想，准备把蓝色风车让给朋友">
+                            </div>
+                            <div class="step-text">你也许可以说：“这次你先选吧。”</div>
+                            <div class="step-actions">
+                                <button class="step-action-btn" onclick="actYield('offer')">我愿意让一下</button>
+                                <button class="step-action-btn alt" onclick="actYield('keep')">我还是想先拿走</button>
+                            </div>
+                        </div>
+                        <div class="story-step step-result">
+                            <div class="step-badge">第 4 步</div>
+                            <div class="step-question">让出去的只是一个风车，留下来的却不只是“谢谢”。</div>
+                            <div class="step-image-frame focus-center">
+                                <img src="imgs/03_story_yield_3.png" alt="两个孩子开心地拿着风车站在一起">
+                            </div>
+                            <div class="step-text">让，不是每次都要让，也不是因为害怕才让。要看这个人是不是也真心喜欢，要看他会不会珍惜你的好意，也要看你让的时候，心里是不是站得稳。要是别人只会笑你、抢你，那不叫温柔，那叫没有分寸。可要是你看见对方也很想要，而你愿意大大方方地说“这次你先来”，那才是真的有力量。</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="journey-unit journey-nature">
+                    <div class="journey-head">
+                        <div class="journey-title">第三点：小小的生命，也要轻轻对它们</div>
+                        <div class="journey-subtitle">会说话的人要关心，不会说话的小生命，也可以被轻轻对待。</div>
+                    </div>
+                    <div class="journey-steps">
+                        <div class="story-step">
+                            <div class="step-badge">第 1 步</div>
+                            <div class="step-question">雨后的院子里，小蚂蚁在搬东西，树枝上的小鸟也在整理羽毛。</div>
+                            <div class="step-image-frame focus-center">
+                                <img src="imgs/03_story_life_1.png" alt="院子里有小蚂蚁和小鸟，各自在安静生活">
+                            </div>
+                            <div class="step-text">它们都很小，也不说话。脚步一快，就很容易没看见它们。</div>
+                        </div>
+                        <div class="story-step step-pink">
+                            <div class="step-badge">第 2 步</div>
+                            <div class="step-question">可你蹲下来看看，就会发现：它们虽然安静，也在忙自己的事，也会害怕。</div>
+                            <div class="step-image-frame focus-center">
+                                <img src="imgs/03_story_life_2.png" alt="一个小女孩蹲下来认真看小鸟和小蚂蚁">
+                            </div>
+                            <div class="step-text">枝条忽然一动，小鸟会飞走；脚步重一点，小蚂蚁就会乱掉。</div>
+                        </div>
+                        <div class="story-step step-green">
+                            <div class="step-badge">第 3 步</div>
+                            <div class="step-question">这时候你会不会想：我能不能轻一点、慢一点，不吓到它们，也不碰乱它们？</div>
+                            <div class="step-image-frame focus-center">
+                                <img src="imgs/03_story_life_2.png" alt="孩子收住脚步，准备绕开地上的小蚂蚁">
+                            </div>
+                            <div class="step-text">也许只是绕开那一小列蚂蚁，也许只是把手轻轻收回来，不去乱碰。</div>
+                            <div class="step-actions">
+                                <button class="step-action-btn" onclick="actCherishLife('protect')">我愿意轻一点</button>
+                                <button class="step-action-btn alt" onclick="actCherishLife('neglect')">反正它们也不会说</button>
+                            </div>
+                        </div>
+                        <div class="story-step step-result">
+                            <div class="step-badge">第 4 步</div>
+                            <div class="step-question">结果其实很安静：你没有做伟大的事，只是让它们还能好好待在那里。</div>
+                            <div class="step-image-frame focus-center">
+                                <img src="imgs/03_story_life_3.png" alt="孩子安静地陪着小鸟和蚂蚁，院子显得温柔又宁静">
+                            </div>
+                            <div class="step-text">原来轻一点、慢一点，也是一种温柔。</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 爱心之源：所有花朵汇集 -->
+            <div class="source-area">
+                <div class="source-title">每想明白一次，花园就开一朵花</div>
+                
+                <div class="source-content">
+                    <div class="garden-bed">
+                        <div class="flowers-container" id="flowersContainer">
+                            <!-- 花朵会动态添加在这里 -->
+                        </div>
+                    </div>
+                    
+                    <div class="source-controls">
+                        <button class="flower-btn" onclick="addFlower('sun')">
+                            <i class="fas fa-sun"></i> 种一朵看见花
+                        </button>
+                        
+                        <button class="flower-btn" onclick="addFlower('rose')">
+                            <i class="fas fa-thumbs-up"></i> 种一朵友爱花
+                        </button>
+                        
+                        <button class="flower-btn" onclick="addFlower('carnation')">
+                            <i class="fas fa-heart"></i> 种一朵关怀花
+                        </button>
+                        
+                        <button class="flower-btn" onclick="addFlower('lavender')">
+                            <i class="fas fa-leaf"></i> 种一朵自然花
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="counter">
+                    我想明白后种下的花: <span id="flowerCount">0</span> 朵
+                </div>
+
+                <div style="text-align: center; margin-top: 20px;">
+                    <button class="flower-btn" onclick="clearGarden()" style="background: linear-gradient(135deg, #ff6b8b, #ff9e6d);">
+                        <i class="fas fa-trash-alt"></i> 清空花园
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 底部区域 -->
+    <div class="footer">
+        <div class="footer-text">泛爱众而亲仁，用心关爱每一个人和每一种生命！</div>
+    </div>
+
+    <script>
+        let flowerCount = 0;
+        let flowers = { sun: [], rose: [], carnation: [], lavender: [] };
+        let bubbleVisible = false;
+        const STORAGE_KEY = 'dizi_week3_garden_state';
+
+        function createFallingPetals() {
+            const container = document.getElementById('fallingPetals');
+            const petalCount = 12;
+            const colors = ['#ffd166', '#ff9e6d', '#ffccf9', '#c68dff'];
+            const emojis = ['🌸', '🌼', '🌺', '🌷', '🍀'];
+
+            for (let i = 0; i < petalCount; i++) {
+                const petal = document.createElement('div');
+                petal.classList.add('falling-petal');
+                petal.innerHTML = emojis[Math.floor(Math.random() * emojis.length)];
+                petal.style.left = Math.random() * 100 + 'vw';
+                petal.style.animationDuration = (10 + Math.random() * 20) + 's';
+                petal.style.fontSize = (20 + Math.random() * 20) + 'px';
+                petal.style.color = colors[Math.floor(Math.random() * colors.length)];
+                container.appendChild(petal);
+
+                setTimeout(() => {
+                    if (container.contains(petal)) {
+                        container.removeChild(petal);
+                    }
+                }, 30000);
+            }
+
+            setTimeout(createFallingPetals, 5000);
+        }
+
+        function createFloatingFlowers() {
+            const container = document.getElementById('floatingFlowers');
+            const floatingFlowerCount = 8;
+            const colors = ['#ffd166', '#ff9e6d', '#ffccf9', '#c68dff'];
+
+            for (let i = 0; i < floatingFlowerCount; i++) {
+                const flower = document.createElement('div');
+                flower.classList.add('floating-heart');
+                flower.innerHTML = '🌸';
+                flower.style.left = Math.random() * 100 + 'vw';
+                flower.style.animationDelay = Math.random() * 5 + 's';
+                flower.style.color = colors[Math.floor(Math.random() * colors.length)];
+                flower.style.fontSize = (30 + Math.random() * 30) + 'px';
+                container.appendChild(flower);
+            }
+        }
+
+        function showBubbles() {
+            const bubble1 = document.getElementById('bubble1');
+            const bubble2 = document.getElementById('bubble2');
+
+            if (Math.random() > 0.5 && !bubbleVisible) {
+                bubble1.style.display = 'block';
+                bubbleVisible = true;
+
+                setTimeout(() => {
+                    bubble1.style.display = 'none';
+                    setTimeout(() => {
+                        bubble2.style.display = 'block';
+                        setTimeout(() => {
+                            bubble2.style.display = 'none';
+                            bubbleVisible = false;
+                        }, 4000);
+                    }, 1200);
+                }, 4000);
+            }
+        }
+
+        function plantSeed() {
+            const seed = document.createElement('div');
+            seed.style.position = 'fixed';
+            seed.style.top = '300px';
+            seed.style.left = '50%';
+            seed.style.transform = 'translateX(-50%)';
+            seed.style.width = '110px';
+            seed.style.height = '110px';
+            seed.style.background = 'radial-gradient(circle, #7bff7b 0%, #2ecc71 70%, #27ae60 100%)';
+            seed.style.borderRadius = '50%';
+            seed.style.zIndex = '100';
+            seed.style.animation = 'grow 1.2s alternate infinite';
+            seed.style.fontSize = '60px';
+            seed.style.display = 'flex';
+            seed.style.alignItems = 'center';
+            seed.style.justifyContent = 'center';
+            seed.innerHTML = '🌱';
+            document.body.appendChild(seed);
+
+            setTimeout(() => {
+                seed.style.transition = 'all 2.5s ease-out';
+                seed.style.transform = 'translate(-100px, 300px) scale(0.3)';
+                seed.style.opacity = '0.6';
+            }, 1200);
+
+            setTimeout(() => {
+                showMessage('🌿 先看见发生了什么，再慢慢想一想。');
+                seed.remove();
+                const types = ['sun', 'rose', 'carnation', 'lavender'];
+                const type = types[Math.floor(Math.random() * types.length)];
+                for (let i = 0; i < 2; i++) {
+                    setTimeout(() => addFlower(type, true), i * 400);
+                }
+            }, 3800);
+        }
+
+        const growStyle = document.createElement('style');
+        growStyle.textContent = `
+            @keyframes grow {
+                0% { transform: scale(0.5); }
+                100% { transform: scale(1); }
+            }
+        `;
+        document.head.appendChild(growStyle);
+
+        function actCompassion(action) {
+            if (action === 'approach') {
+                showMessage('🤍 你轻轻靠近他，这份不忍会让他的心安定一点。');
+                createHeartAnimation(window.innerWidth / 2, window.innerHeight / 2);
+                addFlower('rose');
+            } else {
+                showMessage('😶 你走开了，可他还是安静地难受着。你心里会不会还记得这一幕？');
+            }
+        }
+
+        function actYield(action) {
+            if (action === 'offer') {
+                showMessage('🌿 你愿意让一下，心里反而会变得更宽一点。');
+                createHeartAnimation(window.innerWidth / 2, window.innerHeight / 2);
+                addFlower('carnation');
+            } else {
+                showMessage('🫳 你先抓住了它，可心里也会知道：刚刚其实有一个“让一下”的机会。');
+            }
+        }
+
+        function actCherishLife(action) {
+            if (action === 'protect') {
+                showMessage('🐾 你轻轻珍惜它们，这个世界也会轻轻回给你温柔。');
+                createHeartAnimation(window.innerWidth / 2, window.innerHeight / 2);
+                addFlower('lavender');
+            } else {
+                showMessage('🌫️ 它们不会说话，可被忽略、被伤到的时候，世界也会悄悄少一点温柔。');
+            }
+        }
+
+        function saveState() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                flowers: {
+                    sun: flowers.sun.length,
+                    rose: flowers.rose.length,
+                    carnation: flowers.carnation.length,
+                    lavender: flowers.lavender.length
+                }
+            }));
+        }
+
+        function renderFlower(type) {
+            const container = document.getElementById('flowersContainer');
+            if (!container) return;
+
+            const flower = document.createElement('div');
+            flower.classList.add('flower');
+
+            let bgColor, emoji, className;
+            switch (type) {
+                case 'sun':
+                    bgColor = '#ffd166';
+                    emoji = '🌻';
+                    className = 'sun-flower';
+                    break;
+                case 'rose':
+                    bgColor = '#ff9e6d';
+                    emoji = '🌹';
+                    className = 'rose-flower';
+                    break;
+                case 'carnation':
+                    bgColor = '#ffccf9';
+                    emoji = '🌸';
+                    className = 'carnation-flower';
+                    break;
+                case 'lavender':
+                    bgColor = '#c68dff';
+                    emoji = '💜';
+                    className = 'lavender-flower';
+                    break;
+                default:
+                    bgColor = '#c68dff';
+                    emoji = '🌺';
+                    className = 'lavender-flower';
+            }
+
+            flower.classList.add(className);
+            flower.style.backgroundColor = bgColor;
+            flower.innerHTML = emoji;
+            container.appendChild(flower);
+        }
+
+        function loadState() {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return false;
+
+            let state;
+            try {
+                state = JSON.parse(raw);
+            } catch (e) {
+                console.error('Failed to parse saved state:', e);
+                return false;
+            }
+
+            if (!state.flowers) return false;
+
+            flowers = { sun: [], rose: [], carnation: [], lavender: [] };
+            document.getElementById('flowersContainer').innerHTML = '';
+
+            for (const type of ['sun', 'rose', 'carnation', 'lavender']) {
+                const count = state.flowers[type];
+                if (typeof count === 'number' && count > 0) {
+                    for (let i = 0; i < count; i++) {
+                        renderFlower(type);
+                        flowers[type].push({});
+                    }
+                }
+            }
+
+            flowerCount = flowers.sun.length + flowers.rose.length + flowers.carnation.length + flowers.lavender.length;
+            document.getElementById('flowerCount').textContent = flowerCount;
+            return flowerCount > 0;
+        }
+
+        function addFlower(type, silent = false) {
+            renderFlower(type);
+            flowers[type].push({});
+            flowerCount = flowers.sun.length + flowers.rose.length + flowers.carnation.length + flowers.lavender.length;
+            document.getElementById('flowerCount').textContent = flowerCount;
+            saveState();
+
+            if (!silent) {
+                const messages = {
+                    sun: '🌻 你先学会了看见别人。',
+                    rose: '🌹 你的心里生出了一点不忍。',
+                    carnation: '🌸 你愿意给别人留一点位置。',
+                    lavender: '💜 你轻轻珍惜了安静的小生命。'
+                };
+                if (messages[type]) {
+                    showMessage(messages[type]);
+                }
+            }
+
+            if (flowerCount === 15) {
+                setTimeout(() => {
+                    showMessage('🎉 你不是在答题，你是在慢慢把心变得更宽。');
+                }, 500);
+            }
+
+            if (flowerCount === 30) {
+                setTimeout(() => {
+                    showMessage('🏆 当心里能装下别人和小生命时，花园就会开到很深很远。');
+                    for (let i = 0; i < 25; i++) {
+                        setTimeout(() => {
+                            createHeartAnimation(
+                                Math.random() * window.innerWidth,
+                                Math.random() * window.innerHeight
+                            );
+                        }, i * 100);
+                    }
+                }, 500);
+            }
+        }
+
+        function createHeartAnimation(x, y) {
+            const flower = document.createElement('div');
+            flower.innerHTML = '🌺';
+            flower.style.position = 'fixed';
+            flower.style.left = x + 'px';
+            flower.style.top = y + 'px';
+            flower.style.fontSize = '52px';
+            flower.style.zIndex = '100';
+            flower.style.animation = 'flowerPulsate 1.8s forwards';
+            document.body.appendChild(flower);
+
+            if (!document.querySelector('#flowerPulsateStyle')) {
+                const pulseStyle = document.createElement('style');
+                pulseStyle.id = 'flowerPulsateStyle';
+                pulseStyle.textContent = `
+                    @keyframes flowerPulsate {
+                        0% { transform: scale(0.2); opacity: 1; }
+                        50% { transform: scale(1.3); opacity: 0.8; }
+                        100% { transform: scale(0.5); opacity: 0; }
+                    }
+                `;
+                document.head.appendChild(pulseStyle);
+            }
+
+            setTimeout(() => flower.remove(), 1800);
+        }
+
+        function showMessage(text) {
+            const existingMsg = document.querySelector('.message-bubble');
+            if (existingMsg) existingMsg.remove();
+
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message-bubble');
+            messageDiv.textContent = text;
+            messageDiv.style.position = 'fixed';
+            messageDiv.style.top = '20px';
+            messageDiv.style.right = '20px';
+            messageDiv.style.left = 'auto';
+            messageDiv.style.transform = 'none';
+            messageDiv.style.backgroundColor = 'rgba(255, 255, 255, 0.95)';
+            messageDiv.style.color = '#5a3d8a';
+            messageDiv.style.fontSize = '24px';
+            messageDiv.style.padding = '15px 25px';
+            messageDiv.style.borderRadius = '20px';
+            messageDiv.style.border = '4px solid #ff6b8b';
+            messageDiv.style.boxShadow = '0 10px 25px rgba(0,0,0,0.3)';
+            messageDiv.style.zIndex = '1000';
+            messageDiv.style.textAlign = 'center';
+            messageDiv.style.lineHeight = '1.4';
+            messageDiv.style.maxWidth = '400px';
+            messageDiv.style.wordWrap = 'break-word';
+            document.body.appendChild(messageDiv);
+
+            setTimeout(() => {
+                messageDiv.style.transition = 'opacity 0.5s';
+                messageDiv.style.opacity = '0';
+                setTimeout(() => {
+                    if (messageDiv.parentNode) {
+                        document.body.removeChild(messageDiv);
+                    }
+                }, 500);
+            }, 4000);
+        }
+
+        function clearGarden() {
+            if (confirm('确定要清空花园吗？所有花朵将被移除且无法恢复。')) {
+                flowerCount = 0;
+                flowers = { sun: [], rose: [], carnation: [], lavender: [] };
+                document.getElementById('flowersContainer').innerHTML = '';
+                document.getElementById('flowerCount').textContent = flowerCount;
+                localStorage.removeItem(STORAGE_KEY);
+                showMessage('🗑️ 花园已清空！您可以重新开始种植新的花朵。');
+            }
+        }
+
+        window.onload = function() {
+            createFloatingFlowers();
+            createFallingPetals();
+            setInterval(showBubbles, 10000);
+
+            const hasSavedState = loadState();
+            if (!hasSavedState) {
+                setTimeout(() => {
+                    showMessage(`欢迎来到泛爱众花园！
+
+先一小步一小步地看，一小步一小步地想，最后你会明白怎样做会让世界更温暖。`);
+                }, 1500);
+                setTimeout(() => addFlower('sun'), 3000);
+                setTimeout(() => addFlower('carnation'), 3500);
+            }
+        };
+    </script>
+</body>
+</html>
+
