@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>今天，轮到你出任务啦</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            background:
+                radial-gradient(circle at top left, rgba(255, 239, 191, 0.8), transparent 24%),
+                linear-gradient(180deg, #f5fbff 0%, #ecf7ff 100%);
+            font-family: "Comic Sans MS", "微软雅黑", sans-serif;
+            color: #4e4768;
+        }
+
+        .page {
+            width: 100%;
+            max-width: 1380px;
+            margin: 0 auto;
+            padding: 28px 28px 120px;
+        }
+
+        .hero,
+        .section,
+        .ending {
+            background: rgba(255, 255, 255, 0.92);
+            border-radius: 36px;
+            box-shadow: 0 16px 42px rgba(56, 105, 173, 0.12);
+            overflow: hidden;
+            margin-bottom: 28px;
+        }
+
+        .hero {
+            border: 10px solid #ffd470;
+            background: linear-gradient(135deg, #fff7e0 0%, #ffe8c4 100%);
+            padding: 34px;
+        }
+
+        .hero-title {
+            font-size: 56px;
+            line-height: 1.2;
+            text-align: center;
+            color: #5a53a6;
+            text-shadow: 3px 3px 0 #fff;
+            margin-bottom: 18px;
+        }
+
+        .hero-text {
+            font-size: 28px;
+            line-height: 1.85;
+            color: #625b7c;
+            text-align: center;
+            max-width: 1080px;
+            margin: 0 auto;
+        }
+
+        .hero-text strong {
+            color: #ff7a4f;
+        }
+
+        .hero-grid,
+        .section-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 22px;
+            margin-top: 28px;
+        }
+
+        .card,
+        .step-card,
+        .mission-card {
+            border-radius: 28px;
+            padding: 18px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.75);
+            border: 6px solid #ffe0a6;
+        }
+
+        .card p {
+            font-size: 24px;
+            line-height: 1.75;
+            color: #625b7c;
+        }
+
+        .placeholder {
+            width: 100%;
+            height: 320px;
+            border-radius: 22px;
+            border: 6px dashed #cfd9ea;
+            background: linear-gradient(135deg, rgba(240, 246, 255, 0.95), rgba(255, 248, 232, 0.95));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            color: #8884a2;
+            font-size: 30px;
+            line-height: 1.5;
+            padding: 24px;
+            margin-bottom: 14px;
+        }
+
+        .story-image {
+            width: 100%;
+            height: 320px;
+            object-fit: cover;
+            border-radius: 22px;
+            border: 6px solid #d7e6f7;
+            display: block;
+            margin-bottom: 14px;
+            background: #f4f8ff;
+        }
+
+        .section {
+            border: 10px solid #b8dcff;
+            padding: 30px;
+        }
+
+        .section-title {
+            font-size: 42px;
+            line-height: 1.3;
+            text-align: center;
+            color: #2877d6;
+            margin-bottom: 12px;
+        }
+
+        .section-subtitle {
+            font-size: 26px;
+            line-height: 1.8;
+            text-align: center;
+            color: #625b7c;
+            max-width: 1050px;
+            margin: 0 auto 24px;
+        }
+
+        .step-column {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .step-card {
+            background: #f7fbff;
+            border: 5px solid #b8dcff;
+        }
+
+        .step-tag {
+            display: inline-block;
+            padding: 6px 14px;
+            border-radius: 999px;
+            background: #4897f3;
+            color: white;
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+
+        .step-card h3,
+        .mission-card h3 {
+            font-size: 30px;
+            line-height: 1.5;
+            color: #4c457d;
+            margin-bottom: 8px;
+        }
+
+        .step-card p,
+        .mission-card p {
+            font-size: 22px;
+            line-height: 1.75;
+            color: #665f80;
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 14px;
+        }
+
+        .btn {
+            border: none;
+            border-radius: 20px;
+            padding: 14px 20px;
+            font-size: 22px;
+            color: #4c457d;
+            background: #ffe6af;
+            border: 4px solid #ffd166;
+            cursor: pointer;
+            transition: transform 0.2s ease, background 0.2s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-3px);
+            background: #dff1ff;
+        }
+
+        .mission-board {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 18px;
+            margin-top: 18px;
+        }
+
+        .mission-card {
+            background: linear-gradient(180deg, #fffdf8 0%, #fff1d8 100%);
+            border: 6px solid #ffd98c;
+            min-height: 290px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .mission-card .btn {
+            margin-top: auto;
+        }
+
+        .ending {
+            border: 10px solid #9fd1ff;
+            background: linear-gradient(135deg, #eff8ff 0%, #fff7df 100%);
+            padding: 30px;
+        }
+
+        .ending-title {
+            font-size: 42px;
+            line-height: 1.3;
+            text-align: center;
+            color: #2877d6;
+            margin-bottom: 12px;
+        }
+
+        .ending-text {
+            font-size: 26px;
+            line-height: 1.8;
+            text-align: center;
+            color: #625b7c;
+            max-width: 980px;
+            margin: 0 auto 22px;
+        }
+
+        .record-box {
+            background: rgba(255, 255, 255, 0.86);
+            border-radius: 26px;
+            border: 6px solid #c4e0ff;
+            padding: 24px;
+        }
+
+        .record-title {
+            font-size: 34px;
+            text-align: center;
+            color: #4c457d;
+            margin-bottom: 12px;
+        }
+
+        .record-main {
+            font-size: 25px;
+            line-height: 1.8;
+            text-align: center;
+            color: #625b7c;
+            margin-bottom: 16px;
+        }
+
+        .record-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .record-item {
+            width: min(760px, 100%);
+            border-radius: 18px;
+            background: #fff;
+            padding: 12px 16px;
+            font-size: 21px;
+            line-height: 1.7;
+            color: #665f80;
+        }
+
+        .message {
+            position: fixed;
+            left: 50%;
+            bottom: 30px;
+            transform: translateX(-50%);
+            min-width: 320px;
+            max-width: 80vw;
+            background: rgba(255, 255, 255, 0.97);
+            border: 6px solid #ffb27a;
+            border-radius: 24px;
+            padding: 16px 20px;
+            text-align: center;
+            font-size: 24px;
+            line-height: 1.6;
+            color: #4c457d;
+            box-shadow: 0 16px 34px rgba(0, 0, 0, 0.15);
+            display: none;
+            z-index: 999;
+        }
+
+        @media (max-width: 1024px) {
+            .hero-grid,
+            .section-grid,
+            .mission-board {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="hero">
+            <div class="hero-title">今天，轮到你出任务啦</div>
+            <div class="hero-text">
+                这不是一堂课，也不是谁在考你。<br>
+                这是“咚咚任务站”今天送来的三张小任务卡。<br>
+                它们都不是大人的任务，也不是要你一下变得很厉害。<br>
+                它们只是一些<strong>只有小朋友才会先发现、先靠近、先接住</strong>的小任务。<br>
+                如果你愿意去接，它们今天会认得你，明天也可能还会再来找你。
+            </div>
+
+            <div class="hero-grid">
+                <div class="card">
+                    <img src="imgs/yuan_02/task_station_open.png" alt="卡通任务站开门了，一个孩子收到今天的三张任务卡" class="story-image">
+                    <p>任务站不会给你很大的工作。它只会轻轻问你：今天，有没有一件小事情，刚好轮到你来发现？</p>
+                </div>
+                <div class="card">
+                    <img src="imgs/yuan_02/task_station_chosen.png" alt="孩子被选中去接一个小任务" class="story-image">
+                    <p>有时候孩子最需要的，不是听见“你真棒”，而是感觉到：原来今天真的有一件事，是轮到我来做的。</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">任务卡一：有人没有开口，可你可能会先看见</div>
+            <div class="section-subtitle">有些小任务，不是修东西，也不是干大活，而是别人没有说出来的时候，你先看见了一点点不对劲。</div>
+
+            <div class="section-grid">
+                <div class="card">
+                    <img src="imgs/yuan_02/task_card_friend.png" alt="卡通小伙伴没有加入大家，另一个孩子先注意到了" class="story-image">
+                    <p>他没有哭，也没有大声喊人。可你看一眼，也许会觉得：咦，他今天好像有一点安静。</p>
+                </div>
+
+                <div class="step-column">
+                    <div class="step-card">
+                        <div class="step-tag">第 1 步</div>
+                        <h3>先发现</h3>
+                        <p>不是每个人都会说“我不开心”。有时候，小任务就是先看见那一点点没说出口的东西。</p>
+                    </div>
+                    <div class="step-card">
+                        <div class="step-tag">第 2 步</div>
+                        <h3>再靠近</h3>
+                        <p>你不用立刻解决问题，也不用讲很多大道理。你可以只是坐过去、看一眼、或者轻轻问一句。</p>
+                    </div>
+                    <div class="step-card">
+                        <div class="step-tag">第 3 步</div>
+                        <h3>接不接这张任务卡？</h3>
+                        <p>只要你愿意出现一下，这个任务就已经开始了。</p>
+                        <div class="actions">
+                            <button class="btn" onclick="recordMoment('你接下了第一张任务卡：去靠近一下那个没有开口的人。')">我去看看</button>
+                            <button class="btn" onclick="recordMoment('你还没过去，但这张任务卡今天已经让你看见了。')">我先记在心里</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">任务卡二：有个小地方，今天可能刚好轮到你来接住</div>
+            <div class="section-subtitle">不是所有任务都很大。有些任务只是：一个小地方有点乱了，一个小东西少了一下，而你刚好可以去接住它。</div>
+
+            <div class="section-grid">
+                <div class="card">
+                    <img src="imgs/yuan_02/task_card_room.png" alt="卡通房间里有一个小问题，孩子先注意到了" class="story-image">
+                    <p>别人没注意到，不等于它不重要。它只是静静地在那里，刚好等一个会看见它的人。</p>
+                </div>
+
+                <div class="step-column">
+                    <div class="step-card">
+                        <div class="step-tag">第 1 步</div>
+                        <h3>先注意到</h3>
+                        <p>这个小问题不会跑来喊你。可如果你看见了，它就已经和你有了一点点关系。</p>
+                    </div>
+                    <div class="step-card">
+                        <div class="step-tag">第 2 步</div>
+                        <h3>再接住它</h3>
+                        <p>你不一定要做很久。你可以只是摆一摆、递一递、补一补，让这个小地方稳下来一点。</p>
+                    </div>
+                    <div class="step-card">
+                        <div class="step-tag">第 3 步</div>
+                        <h3>这张任务卡像不像今天在等你？</h3>
+                        <div class="actions">
+                            <button class="btn" onclick="pickMission('今天去接住一个没人特别提醒的小问题')">这张像在等我</button>
+                            <button class="btn" onclick="recordMoment('你今天学会了：有些小问题，只会安安静静地等人发现。')">我先学会看见</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">任务卡三：这不是一次性任务，明天它可能还会再来</div>
+            <div class="section-subtitle">真正让孩子慢慢有位置感的，不是只做一次，而是发现：原来有些小任务会再回来，而我也可以慢慢变成那个常常接住它的人。</div>
+
+            <div class="mission-board">
+                <div class="mission-card">
+                    <h3>会再来的小任务</h3>
+                    <p>今天你靠近过一次的人，明天也许还会等你再看一眼。今天你接住过的小问题，后天也可能还会回来。</p>
+                    <button class="btn" onclick="recordMoment('你明白了：有些任务不是做完就没了，它还会回来。')">我知道了</button>
+                </div>
+
+                <div class="mission-card">
+                    <h3>会记住你的任务</h3>
+                    <p>如果你今天真的去接过一次，明天再看见它时，你会更快认出来。它也像会慢慢认得你。</p>
+                    <button class="btn" onclick="recordMoment('你感觉到：有些小任务，今天认得你，明天也会记得你。')">它会记得我</button>
+                </div>
+
+                <div class="mission-card">
+                    <h3>会慢慢变成我的小位置</h3>
+                    <p>不是突然变伟大，而是慢慢知道：这里有一件小事情，我常常会去接一下，它就和我有关系了。</p>
+                    <button class="btn" onclick="pickMission('有一件小任务，以后我想继续接一接')">这件事以后可以交给我</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="ending">
+            <div class="ending-title">原来有些小任务，今天找我，明天也还会来</div>
+            <div class="ending-text">
+                最后先别急着说“我真棒”。<br>
+                先安安静静地想一想：今天有没有一张任务卡，像是真的来找过你？<br>
+                如果明天它还会来，而你也愿意再看看它，那你就在慢慢拥有一个属于自己的小位置。
+            </div>
+
+            <div class="record-box">
+                <div class="record-title">今天和明天的任务板</div>
+                <div class="record-main" id="missionText">你还没有选一张想继续接下去的任务卡。</div>
+                <div class="record-list" id="recordList">
+                    <div class="record-item">当你点页面里的按钮时，这里会慢慢记下：今天哪张任务卡来找过你，明天你还想不想继续接它。</div>
+                </div>
+                <div class="actions" style="justify-content: center; margin-top: 18px;">
+                    <button class="btn" onclick="completeMission()">我今天真的去做了</button>
+                    <button class="btn" onclick="carryToTomorrow()">明天我还想继续</button>
+                    <button class="btn" onclick="resetPage()">重新选任务卡</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="message" id="message"></div>
+
+    <script>
+        const STORAGE_KEY = 'yuan_02_task_station_state';
+
+        let state = {
+            mission: '',
+            records: []
+        };
+
+        function showMessage(text) {
+            const box = document.getElementById('message');
+            box.textContent = text;
+            box.style.display = 'block';
+            clearTimeout(showMessage.timer);
+            showMessage.timer = setTimeout(() => {
+                box.style.display = 'none';
+            }, 2600);
+        }
+
+        function recordMoment(text) {
+            state.records.push(text);
+            saveState();
+            renderState();
+            showMessage(text);
+        }
+
+        function pickMission(text) {
+            state.mission = text;
+            saveState();
+            renderState();
+            showMessage(`你今天选中的任务卡是：${text}`);
+        }
+
+        function completeMission() {
+            if (!state.mission) {
+                showMessage('先选一张今天想接的任务卡。');
+                return;
+            }
+            state.records.push(`今天你真的去接了一下：${state.mission}`);
+            saveState();
+            renderState();
+            showMessage('任务站已经记下：你今天真的出现过。');
+        }
+
+        function carryToTomorrow() {
+            if (!state.mission) {
+                showMessage('先选一张明天还想继续的任务卡。');
+                return;
+            }
+            state.records.push(`你决定明天还继续看看：${state.mission}`);
+            saveState();
+            renderState();
+            showMessage('这样，它就不只是今天的任务了，明天它还可能再来找你。');
+        }
+
+        function resetPage() {
+            state = { mission: '', records: [] };
+            saveState();
+            renderState();
+            showMessage('已经重新开始。今天，再选一张真的想接的任务卡吧。');
+        }
+
+        function renderState() {
+            const missionText = document.getElementById('missionText');
+            const recordList = document.getElementById('recordList');
+
+            missionText.textContent = state.mission
+                ? `今天和明天都可以慢慢交给你的一张任务卡：${state.mission}`
+                : '你还没有选一张想继续接下去的任务卡。';
+
+            if (!state.records.length) {
+                recordList.innerHTML = '<div class="record-item">当你点页面里的按钮时，这里会慢慢记下：今天哪张任务卡来找过你，明天你还想不想继续接它。</div>';
+                return;
+            }
+
+            recordList.innerHTML = state.records
+                .slice(-6)
+                .map(item => `<div class="record-item">${item}</div>`)
+                .join('');
+        }
+
+        function saveState() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        }
+
+        function loadState() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (!raw) return;
+                const parsed = JSON.parse(raw);
+                if (parsed && typeof parsed === 'object') {
+                    state.mission = parsed.mission || '';
+                    state.records = Array.isArray(parsed.records) ? parsed.records : [];
+                }
+            } catch (e) {
+                console.log('loadState error', e);
+            }
+        }
+
+        window.onload = function() {
+            loadState();
+            renderState();
+        };
+    </script>
+</body>
+</html>
