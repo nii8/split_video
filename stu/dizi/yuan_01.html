@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>小小哲学家：寻找我的人生意义</title>
+    <title>小小哲学家：慢慢发现自己的光</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * {
@@ -471,58 +471,51 @@
     </style>
 </head>
 <body>
-    <!-- 主容器 -->
     <div class="main-container">
-        <!-- 顶部区域 -->
         <div class="header">
-            <div class="title-text">小小哲学家：寻找我的人生意义</div>
+            <div class="title-text">小小哲学家：慢慢发现自己的光</div>
         </div>
 
-        <!-- 内容区域 -->
         <div class="content-area">
-            <!-- 第一部分：开场故事区 -->
             <div class="section-area">
                 <div class="section-title">小星星找光的故事</div>
 
                 <div class="section-content" style="justify-content: center; gap: 50px;">
                     <div class="scene-placeholder" id="story-left" style="width: 45%; height: 350px;">
-                        <img src="imgs/yuan_01/star_night.png" alt="小星星照亮萤火虫，夜空温暖" style="width: 100%; height: 100%; object-fit: cover; border-radius: 20px;">
+                        <img src="imgs/yuan_01/star_night.png" alt="小星星照亮了别人的夜空" style="width: 100%; height: 100%; object-fit: cover; border-radius: 20px;">
                     </div>
 
                     <div class="scene-placeholder" id="story-right" style="width: 45%; height: 350px;">
-                        <img src="imgs/yuan_01/star_lonely.png" alt="小星星只照自己，夜空冷清" style="width: 100%; height: 100%; object-fit: cover; border-radius: 20px;">
+                        <img src="imgs/yuan_01/star_lonely.png" alt="小星星只照着自己" style="width: 100%; height: 100%; object-fit: cover; border-radius: 20px;">
                     </div>
                 </div>
 
                 <div class="reflection-area">
                     <div class="reflection-title">想一想</div>
                     <div class="reflection-content">
-                        你想让夜空变得<b>暖暖的笑起来</b>😊，还是<b>冷冷的孤零零</b>😢？
+                        你更喜欢哪一边的夜空呢？是暖暖的、会让人想靠近的那一边，还是冷冷清清、只照着自己的那一边？
                     </div>
                 </div>
 
                 <button class="interactive-btn" onclick="lightUpStars()">
-                    <i class="fas fa-star"></i> 点亮星空
+                    <i class="fas fa-star"></i> 点一点星空
                 </button>
             </div>
 
-            <!-- 第二部分：古典智慧小课堂 -->
             <div class="section-area">
-                <div class="section-title">古人的小故事</div>
+                <div class="section-title">我的小光会慢慢长大</div>
 
                 <div class="reflection-area">
                     <div class="reflection-title">心愿小树</div>
                     <div class="reflection-content">
-                        来看看小树苗是怎么长大的吧！🌱
+                        你心里的一个小小愿望，也会像树苗一样，慢慢长大。
                     </div>
                 </div>
 
-                <!-- 心愿小树 4 步分步图 -->
                 <div class="step-images">
-                    <!-- 第 1 步：种子 -->
                     <div class="step-image-container active" id="tree-step-1">
-                        <img src="imgs/yuan_01/tree_seed.png" alt="孩子脚下有一颗小种子" class="step-image">
-                        <div class="step-question">这是什么呀？</div>
+                        <img src="imgs/yuan_01/tree_seed.png" alt="脚边的小种子" class="step-image">
+                        <div class="step-question">脚边这颗小小的东西，像什么呢？</div>
                         <div class="step-options">
                             <button class="game-btn" onclick="selectTreeStep1('种子')">🌱 种子</button>
                             <button class="game-btn" onclick="selectTreeStep1('苹果')">🍎 苹果</button>
@@ -530,20 +523,18 @@
                         </div>
                     </div>
 
-                    <!-- 第 2 步：发芽 -->
                     <div class="step-image-container" id="tree-step-2">
-                        <img src="imgs/yuan_01/tree_sprout.png" alt="种子发芽，根浅浅的" class="step-image">
-                        <div class="step-question">风来了，小树苗会怎么样？</div>
+                        <img src="imgs/yuan_01/tree_sprout.png" alt="刚刚发芽的小树苗" class="step-image">
+                        <div class="step-question">风来了，小树苗会怎么样呢？</div>
                         <div class="step-options">
                             <button class="game-btn" onclick="selectTreeStep2('倒下')">💨 倒下</button>
-                            <button class="game-btn" onclick="selectTreeStep2('站稳')">💪 站稳</button>
+                            <button class="game-btn" onclick="selectTreeStep2('站稳')">🌿 站稳</button>
                         </div>
                     </div>
 
-                    <!-- 第 3 步：根深 -->
                     <div class="step-image-container" id="tree-step-3">
-                        <img src="imgs/yuan_01/tree_grow.png" alt="根变粗变深" class="step-image">
-                        <div class="step-question">根扎稳了，可以保护谁？</div>
+                        <img src="imgs/yuan_01/tree_grow.png" alt="根慢慢变深了" class="step-image">
+                        <div class="step-question">根慢慢扎稳了，它可以帮到谁呢？</div>
                         <div class="step-options">
                             <button class="game-btn" onclick="selectTreeStep3('家人')">👨‍👩‍👧 家人</button>
                             <button class="game-btn" onclick="selectTreeStep3('月亮')">🌙 月亮</button>
@@ -551,18 +542,16 @@
                         </div>
                     </div>
 
-                    <!-- 第 4 步：成树 -->
                     <div class="step-image-container" id="tree-step-4">
-                        <img src="imgs/yuan_01/tree_big.png" alt="大树长成给家人遮太阳" class="step-image">
-                        <div class="step-question">你种下的心愿，能让谁开心？</div>
+                        <img src="imgs/yuan_01/tree_big.png" alt="长大的树把阴凉送给别人" class="step-image">
+                        <div class="step-question">你心里的这个小愿望，能让谁开心一点呢？</div>
                         <div class="step-options">
                             <button class="game-btn" onclick="selectTreeStep4('妈妈')">👩 妈妈</button>
-                            <button class="game-btn" onclick="selectTreeStep4('朋友')">👦 朋友</button>
-                            <button class="game-btn" onclick="selectTreeStep4('全家')">🏠 全家</button>
+                            <button class="game-btn" onclick="selectTreeStep4('朋友')">🧒 朋友</button>
+                            <button class="game-btn" onclick="selectTreeStep4('全家')">🏡 全家</button>
                         </div>
                     </div>
 
-                    <!-- 步骤导航点 -->
                     <div class="step-nav">
                         <div class="step-dot active" onclick="goToTreeStep(1)"></div>
                         <div class="step-dot" onclick="goToTreeStep(2)"></div>
@@ -574,16 +563,14 @@
                 <div class="reflection-area">
                     <div class="reflection-title">影子变变变</div>
                     <div class="reflection-content">
-                        来玩影子游戏吧！👣
+                        影子会变来变去，可有些东西，一直还是你自己。
                     </div>
                 </div>
 
-                <!-- 影子变变变 3 步分步图 -->
                 <div class="step-images">
-                    <!-- 第 1 步：站在太阳下 -->
                     <div class="step-image-container active" id="shadow-step-1">
-                        <img src="imgs/yuan_01/shadow_game.png" alt="小人站在太阳下有影子" class="step-image">
-                        <div class="step-question">这是什么呀？</div>
+                        <img src="imgs/yuan_01/shadow_game.png" alt="小人和影子" class="step-image">
+                        <div class="step-question">地上的这个黑黑长长的，是什么呢？</div>
                         <div class="step-options">
                             <button class="game-btn" onclick="selectShadowStep1('影子')">👤 影子</button>
                             <button class="game-btn" onclick="selectShadowStep1('小狗')">🐶 小狗</button>
@@ -591,28 +578,25 @@
                         </div>
                     </div>
 
-                    <!-- 第 2 步：影子变化 -->
                     <div class="step-image-container" id="shadow-step-2">
-                        <img src="imgs/yuan_01/shadow_game.png" alt="小人移动影子变化" class="step-image">
-                        <div class="step-question">影子会怎么样？</div>
+                        <img src="imgs/yuan_01/shadow_game.png" alt="影子跟着变化" class="step-image">
+                        <div class="step-question">人一动，影子会怎么变呢？</div>
                         <div class="step-options">
                             <button class="game-btn" onclick="selectShadowStep2('变来变去')">✨ 变来变去</button>
-                            <button class="game-btn" onclick="selectShadowStep2('睡觉')">💤 睡觉</button>
+                            <button class="game-btn" onclick="selectShadowStep2('睡觉')">😴 睡觉</button>
                             <button class="game-btn" onclick="selectShadowStep2('跑掉')">🏃 跑掉</button>
                         </div>
                     </div>
 
-                    <!-- 第 3 步：小人微笑 -->
                     <div class="step-image-container" id="shadow-step-3">
-                        <img src="imgs/yuan_01/shadow_game.png" alt="小人一直微笑" class="step-image">
-                        <div class="step-question">影子变了，小人变了吗？</div>
+                        <img src="imgs/yuan_01/shadow_game.png" alt="小人还是小人" class="step-image">
+                        <div class="step-question">影子变了，小人自己变了吗？</div>
                         <div class="step-options">
                             <button class="game-btn" onclick="selectShadowStep3('没变')">😊 没变</button>
-                            <button class="game-btn" onclick="selectShadowStep3('变了')">😢 变了</button>
+                            <button class="game-btn" onclick="selectShadowStep3('变了')">😯 变了</button>
                         </div>
                     </div>
 
-                    <!-- 步骤导航点 -->
                     <div class="step-nav">
                         <div class="step-dot active" onclick="goToShadowStep(1)"></div>
                         <div class="step-dot" onclick="goToShadowStep(2)"></div>
@@ -621,47 +605,42 @@
                 </div>
 
                 <div class="reflection-area">
-                    <div class="reflection-title">小溪流花园</div>
+                    <div class="reflection-title">小溪流过花园</div>
                     <div class="reflection-content">
-                        来看看小溪是怎么帮助花园的吧！💧
+                        小溪没有说很多话，可它流到哪里，哪里就慢慢变亮、变美。
                     </div>
                 </div>
 
-                <!-- 小溪流花园 3 步分步图 -->
                 <div class="step-images">
-                    <!-- 第 1 步：干巴巴的小花 -->
                     <div class="step-image-container active" id="stream-step-1">
-                        <img src="imgs/yuan_01/water_stream.png" alt="小溪流下来旁边有干巴巴的小花" class="step-image">
-                        <div class="step-question">小花口渴了，怎么办？</div>
+                        <img src="imgs/yuan_01/water_stream.png" alt="小溪和没精神的小花" class="step-image">
+                        <div class="step-question">小花有点没精神了，可以怎么帮帮它呢？</div>
                         <div class="step-options">
                             <button class="game-btn" onclick="selectStreamStep1('浇水')">💧 浇水</button>
-                            <button class="game-btn" onclick="selectStreamStep1('晒太阳')">🌞 晒太阳</button>
-                            <button class="game-btn" onclick="selectStreamStep1('睡觉')">💤 睡觉</button>
+                            <button class="game-btn" onclick="selectStreamStep1('晒太阳')">☀️ 晒太阳</button>
+                            <button class="game-btn" onclick="selectStreamStep1('睡觉')">😴 睡觉</button>
                         </div>
                     </div>
 
-                    <!-- 第 2 步：小花抬头 -->
                     <div class="step-image-container" id="stream-step-2">
-                        <img src="imgs/yuan_01/water_stream.png" alt="小溪流到小花旁边小花抬头" class="step-image">
-                        <div class="step-question">小花喝到水了，会怎么样？</div>
+                        <img src="imgs/yuan_01/water_stream.png" alt="小花慢慢抬起头" class="step-image">
+                        <div class="step-question">喝到水以后，小花会怎么样呢？</div>
                         <div class="step-options">
-                            <button class="game-btn" onclick="selectStreamStep2('开花')">🌸 开花</button>
+                            <button class="game-btn" onclick="selectStreamStep2('开花')">🌼 开花</button>
                             <button class="game-btn" onclick="selectStreamStep2('哭')">😢 哭</button>
                             <button class="game-btn" onclick="selectStreamStep2('跑掉')">🏃 跑掉</button>
                         </div>
                     </div>
 
-                    <!-- 第 3 步：花园开花 -->
                     <div class="step-image-container" id="stream-step-3">
-                        <img src="imgs/yuan_01/water_stream.png" alt="整片花园都开花了" class="step-image">
-                        <div class="step-question">小溪得到奖励了吗？</div>
+                        <img src="imgs/yuan_01/water_stream.png" alt="花园慢慢变美" class="step-image">
+                        <div class="step-question">小溪有马上拿到奖励吗？</div>
                         <div class="step-options">
                             <button class="game-btn" onclick="selectStreamStep3('没有')">❌ 没有</button>
                             <button class="game-btn" onclick="selectStreamStep3('有')">✅ 有</button>
                         </div>
                     </div>
 
-                    <!-- 步骤导航点 -->
                     <div class="step-nav">
                         <div class="step-dot active" onclick="goToStreamStep(1)"></div>
                         <div class="step-dot" onclick="goToStreamStep(2)"></div>
@@ -670,41 +649,36 @@
                 </div>
             </div>
 
-            <!-- 第三部分：发现闪闪发光的你 -->
             <div class="section-area">
-                <div class="section-title">发现闪闪发光的你</div>
+                <div class="section-title">我身上也有小光</div>
 
                 <div class="reflection-area">
                     <div class="reflection-title">镜子里的我</div>
                     <div class="reflection-content">
-                        来看看你有哪些小光芒吧！✨
+                        原来你身上，也有一些会让别人开心的小光。
                     </div>
                 </div>
 
-                <!-- 镜子里的我 2 步分步图 -->
                 <div class="step-images">
-                    <!-- 第 1 步：镜子 -->
                     <div class="step-image-container active" id="mirror-step-1">
-                        <img src="imgs/yuan_01/self_mirror.png" alt="镜子照出孩子" class="step-image">
-                        <div class="step-question">你做过哪些让别人开心的事？</div>
+                        <img src="imgs/yuan_01/self_mirror.png" alt="镜子里的我" class="step-image">
+                        <div class="step-question">你做过哪些会让别人开心一点的小事呢？</div>
                         <div class="step-options">
-                            <button class="game-btn" onclick="selectMirrorStep1('分享玩具')">🎁 分享玩具</button>
-                            <button class="game-btn" onclick="selectMirrorStep1('抱朋友')">🤗 抱一抱朋友</button>
-                            <button class="game-btn" onclick="selectMirrorStep1('帮妈妈')">🧹 帮妈妈收拾</button>
+                            <button class="game-btn" onclick="selectMirrorStep1('分享玩具')">🧸 分享玩具</button>
+                            <button class="game-btn" onclick="selectMirrorStep1('抱抱朋友')">🤗 抱抱朋友</button>
+                            <button class="game-btn" onclick="selectMirrorStep1('帮妈妈')">🧹 帮妈妈</button>
                         </div>
                     </div>
 
-                    <!-- 第 2 步：光圈亮了 -->
                     <div class="step-image-container" id="mirror-step-2">
-                        <img src="imgs/yuan_01/self_mirror.png" alt="镜子周围光圈亮了" class="step-image">
-                        <div class="step-question">看，你有这么多小光芒！✨</div>
+                        <img src="imgs/yuan_01/self_mirror.png" alt="镜子边上亮起了小光圈" class="step-image">
+                        <div class="step-question">看，原来你身上也有这样的小光呀。</div>
                         <div class="step-options">
-                            <button class="game-btn" onclick="selectMirrorStep2('开心')">😊 好开心</button>
-                            <button class="game-btn" onclick="selectMirrorStep2('骄傲')">💪 好骄傲</button>
+                            <button class="game-btn" onclick="selectMirrorStep2('开心')">😊 开心</button>
+                            <button class="game-btn" onclick="selectMirrorStep2('骄傲')">🌟 骄傲</button>
                         </div>
                     </div>
 
-                    <!-- 步骤导航点 -->
                     <div class="step-nav">
                         <div class="step-dot active" onclick="goToMirrorStep(1)"></div>
                         <div class="step-dot" onclick="goToMirrorStep(2)"></div>
@@ -712,45 +686,40 @@
                 </div>
 
                 <div class="reflection-area">
-                    <div class="reflection-title">气球变变变</div>
+                    <div class="reflection-title">心里变轻一点</div>
                     <div class="reflection-content">
-                        来感受紧张和轻松吧！🎈
+                        有时候心里紧紧的，有时候心里松一点。来看看它们有什么不一样。
                     </div>
                 </div>
 
-                <!-- 气球变变变 3 步分步图 -->
                 <div class="step-images">
-                    <!-- 第 1 步：小气球轻松 -->
                     <div class="step-image-container active" id="balloon-step-1">
-                        <img src="imgs/yuan_01/balloon_contrast.png" alt="小人拿着小气球表情轻松" class="step-image">
-                        <div class="step-question">气球小小的，小人感觉怎么样？</div>
+                        <img src="imgs/yuan_01/balloon_contrast.png" alt="小气球时很轻松" class="step-image">
+                        <div class="step-question">气球小小的，小人看起来是什么感觉？</div>
                         <div class="step-options">
                             <button class="game-btn" onclick="selectBalloonStep1('轻松')">😊 轻松</button>
-                            <button class="game-btn" onclick="selectBalloonStep1('紧张')">😰 紧张</button>
+                            <button class="game-btn" onclick="selectBalloonStep1('紧张')">😣 紧张</button>
                         </div>
                     </div>
 
-                    <!-- 第 2 步：大气球紧张 -->
                     <div class="step-image-container" id="balloon-step-2">
-                        <img src="imgs/yuan_01/balloon_contrast.png" alt="气球很大小人紧张出汗" class="step-image">
-                        <div class="step-question">气球好大了，小人感觉怎么样？</div>
+                        <img src="imgs/yuan_01/balloon_contrast.png" alt="气球太大时很紧张" class="step-image">
+                        <div class="step-question">气球越来越大了，小人看起来是什么感觉？</div>
                         <div class="step-options">
-                            <button class="game-btn" onclick="selectBalloonStep2('好紧张')">😰 好紧张</button>
-                            <button class="game-btn" onclick="selectBalloonStep2('好开心')">😊 好开心</button>
+                            <button class="game-btn" onclick="selectBalloonStep2('好紧张')">😣 好紧张</button>
+                            <button class="game-btn" onclick="selectBalloonStep2('好开心')">😄 好开心</button>
                         </div>
                     </div>
 
-                    <!-- 第 3 步：放气轻松 -->
                     <div class="step-image-container" id="balloon-step-3">
-                        <img src="imgs/yuan_01/balloon_contrast.png" alt="气球放气小人轻松笑了" class="step-image">
-                        <div class="step-question">气球放气了，小人感觉怎么样？</div>
+                        <img src="imgs/yuan_01/balloon_contrast.png" alt="放完气以后轻松了" class="step-image">
+                        <div class="step-question">气球轻轻放气以后，小人又变成什么感觉了？</div>
                         <div class="step-options">
                             <button class="game-btn" onclick="selectBalloonStep3('轻松了')">😊 轻松了</button>
                             <button class="game-btn" onclick="selectBalloonStep3('难过了')">😢 难过了</button>
                         </div>
                     </div>
 
-                    <!-- 步骤导航点 -->
                     <div class="step-nav">
                         <div class="step-dot active" onclick="goToBalloonStep(1)"></div>
                         <div class="step-dot" onclick="goToBalloonStep(2)"></div>
@@ -759,45 +728,40 @@
                 </div>
 
                 <div class="reflection-area">
-                    <div class="reflection-title">帮助别人的快乐</div>
+                    <div class="reflection-title">把小光送出去</div>
                     <div class="reflection-content">
-                        来看看帮助别人的感觉吧！💖
+                        当你把一点点小光送给别人，别人会变暖一点，你心里也会不一样。
                     </div>
                 </div>
 
-                <!-- 帮助别人的快乐 3 个场景 -->
                 <div class="step-images">
-                    <!-- 场景 1：小朋友摔倒 -->
                     <div class="step-image-container active" id="help-step-1">
-                        <img src="imgs/yuan_01/share_love.png" alt="小朋友摔倒了" class="step-image">
-                        <div class="step-question">小朋友摔倒了，你帮他站起来，他笑了！</div>
+                        <img src="imgs/yuan_01/share_love.png" alt="扶起摔倒的小朋友" class="step-image">
+                        <div class="step-question">小朋友摔倒了，你扶他站起来。他笑了一下，你心里会是什么感觉？</div>
                         <div class="step-options">
                             <button class="game-btn" onclick="selectHelpStep1('开心')">😊 开心</button>
                             <button class="game-btn" onclick="selectHelpStep1('没什么')">😐 没什么</button>
                         </div>
                     </div>
 
-                    <!-- 场景 2：老奶奶拿不动 -->
                     <div class="step-image-container" id="help-step-2">
-                        <img src="imgs/yuan_01/share_love.png" alt="老奶奶拿不动东西" class="step-image">
-                        <div class="step-question">你帮老奶奶拿东西，她说"谢谢你"！</div>
+                        <img src="imgs/yuan_01/share_love.png" alt="帮奶奶拿东西" class="step-image">
+                        <div class="step-question">你帮奶奶拿东西，她轻轻说“谢谢你”。你心里会是什么感觉？</div>
                         <div class="step-options">
                             <button class="game-btn" onclick="selectHelpStep2('暖暖的')">😊 暖暖的</button>
                             <button class="game-btn" onclick="selectHelpStep2('没什么')">😐 没什么</button>
                         </div>
                     </div>
 
-                    <!-- 场景 3：小猫咪饿了 -->
                     <div class="step-image-container" id="help-step-3">
-                        <img src="imgs/yuan_01/share_love.png" alt="小猫咪饿了" class="step-image">
-                        <div class="step-question">你喂小猫咪吃饭，它蹭蹭你！</div>
+                        <img src="imgs/yuan_01/share_love.png" alt="喂小猫吃饭" class="step-image">
+                        <div class="step-question">你喂小猫吃饭，它蹭了蹭你。你心里会是什么感觉？</div>
                         <div class="step-options">
                             <button class="game-btn" onclick="selectHelpStep3('好开心')">😊 好开心</button>
                             <button class="game-btn" onclick="selectHelpStep3('没什么')">😐 没什么</button>
                         </div>
                     </div>
 
-                    <!-- 步骤导航点 -->
                     <div class="step-nav">
                         <div class="step-dot active" onclick="goToHelpStep(1)"></div>
                         <div class="step-dot" onclick="goToHelpStep(2)"></div>
@@ -806,41 +770,38 @@
                 </div>
             </div>
 
-            <!-- 徽章激励 -->
             <div class="section-area" style="min-height: 300px;">
-                <div class="section-title">你获得的徽章</div>
+                <div class="section-title">今天的小收获</div>
 
                 <div class="badge-area">
-                    <div class="badge" id="badge1" title="思考小达人">
+                    <div class="badge" id="badge1" title="会想一想">
                         <i class="fas fa-lightbulb"></i>
                     </div>
-                    <div class="badge" id="badge2" title="爱心小天使">
+                    <div class="badge" id="badge2" title="会发光">
                         <i class="fas fa-heart"></i>
                     </div>
-                    <div class="badge" id="badge3" title="探索小能手">
+                    <div class="badge" id="badge3" title="会分享温暖">
                         <i class="fas fa-medal"></i>
                     </div>
                 </div>
             </div>
 
-            <!-- 亲子延伸活动 -->
             <div class="parent-child-area">
-                <div class="parent-child-title">和爸爸妈妈一起玩</div>
+                <div class="parent-child-title">和爸爸妈妈一起聊一聊</div>
 
                 <div class="parent-child-content">
                     <div class="parent-child-item">
-                        <i class="fas fa-home"></i> 找一找：家里谁像小溪一样帮助别人？
+                        <i class="fas fa-home"></i> 找一找：今天家里谁像小溪一样，让别人舒服了一点？
                     </div>
                     <div class="parent-child-item">
-                        <i class="fas fa-lightbulb"></i> 说一说：今天发现了自己哪些小光芒？
+                        <i class="fas fa-lightbulb"></i> 说一说：今天你发现自己身上哪一点像小光？
                     </div>
                 </div>
             </div>
 
-            <!-- 控制按钮 -->
             <div class="controls">
                 <button class="control-btn" onclick="saveProgress()">
-                    <i class="fas fa-star"></i> 继续探索
+                    <i class="fas fa-star"></i> 继续慢慢看
                 </button>
                 <button class="control-btn" onclick="clearProgress()" style="background: linear-gradient(135deg, #ff9e6d, #ff6b8b);">
                     <i class="fas fa-redo"></i> 重新开始
@@ -849,7 +810,6 @@
         </div>
     </div>
 
-    <!-- 消息弹窗 -->
     <div class="message-popup" id="messagePopup"></div>
 
     <script>
