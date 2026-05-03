@@ -1,0 +1,1319 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小小哲学家：寻找我的人生意义</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 100%;
+            min-height: 100vh;
+            overflow-x: hidden;
+            overflow-y: auto;
+            background: linear-gradient(135deg, #e6f7ff 0%, #f0f9ff 100%);
+            font-family: 'Comic Sans MS', '微软雅黑', sans-serif;
+            position: relative;
+        }
+
+        /* 主容器 */
+        .main-container {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            z-index: 10;
+            padding-bottom: 100px;
+        }
+
+        /* 顶部区域 */
+        .header {
+            height: 180px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 60px;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .title-text {
+            font-size: 48px;
+            color: #1890ff;
+            text-shadow: 3px 3px 0 #91d5ff;
+            letter-spacing: 3px;
+            text-align: center;
+        }
+
+        /* 内容区域 */
+        .content-area {
+            display: flex;
+            flex-direction: column;
+            padding: 0 40px 40px 40px;
+            gap: 35px;
+            flex: 1;
+        }
+
+        /* 版块通用样式 */
+        .section-area {
+            background: linear-gradient(135deg, #fff9e6 0%, #ffeaa7 100%);
+            border-radius: 40px;
+            border: 12px solid #ffd166;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.1);
+            position: relative;
+            overflow: hidden;
+            min-height: 600px;
+            width: 100%;
+        }
+
+        .section-title {
+            font-size: 40px;
+            color: #7c5cc4;
+            margin-bottom: 25px;
+            text-align: center;
+            background-color: #ffeaa7;
+            padding: 15px 40px;
+            border-radius: 50px;
+            border: 6px dashed #ffbc6c;
+            position: relative;
+        }
+
+        .section-content {
+            display: flex;
+            width: 100%;
+            gap: 35px;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 30px;
+        }
+
+        .image-container {
+            flex: 0 0 300px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .image-placeholder {
+            width: 320px;
+            height: 320px;
+            background: linear-gradient(to bottom, #ffeaa7, #fdcb6e);
+            border-radius: 20px;
+            border: 15px solid #ffd166;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            box-shadow: 0 12px 35px rgba(0,0,0,0.15);
+            margin-bottom: 20px;
+            overflow: hidden;
+            font-size: 100px;
+        }
+
+        .image-scenes {
+            flex: 1;
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+            gap: 40px;
+        }
+
+        .scene-placeholder {
+            width: 42%;
+            height: 42%;
+            object-fit: contain;
+            flex-shrink: 0;
+            background: #f0f0f0;
+            border-radius: 20px;
+            border: 5px dashed #aaa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #888;
+            font-size: 24px;
+        }
+
+        .interactive-btn {
+            background: linear-gradient(135deg, #1890ff, #096dd9);
+            color: white;
+            border: none;
+            border-radius: 60px;
+            padding: 25px 50px;
+            font-size: 32px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+            transition: all 0.3s;
+            box-shadow: 0 12px 28px rgba(24, 144, 255, 0.4);
+            width: 80%;
+        }
+
+        .interactive-btn:hover {
+            transform: translateY(-5px);
+            background: linear-gradient(135deg, #096dd9, #1890ff);
+            box-shadow: 0 18px 40px rgba(24, 144, 255, 0.6);
+        }
+
+        /* 引导思考区域 */
+        .reflection-area {
+            background-color: rgba(255, 255, 255, 0.92);
+            border-radius: 40px;
+            border: 12px solid #1890ff;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.12);
+            position: relative;
+            overflow: hidden;
+            min-height: 250px;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .reflection-title {
+            font-size: 36px;
+            margin-bottom: 20px;
+            color: #1890ff;
+        }
+
+        .reflection-content {
+            font-size: 28px;
+            color: #5a3d8a;
+            line-height: 1.6;
+        }
+
+        /* 互动游戏区域 */
+        .game-area {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 25px;
+            flex-wrap: wrap;
+        }
+
+        .game-btn {
+            background-color: #9dffb0;
+            border: 6px solid #7c5cc4;
+            border-radius: 40px;
+            padding: 20px 35px;
+            font-size: 28px;
+            color: #5a3d8a;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.3s;
+        }
+
+        .game-btn:hover {
+            transform: translateY(-5px);
+            background-color: #8ac6ff;
+            color: white;
+        }
+
+        /* 徽章区域 */
+        .badge-area {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 25px;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #ffd166, #ff9e6d);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 50px;
+            color: white;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+            transition: transform 0.3s;
+        }
+
+        .badge:hover {
+            transform: scale(1.1);
+        }
+
+        /* 亲子活动区域 */
+        .parent-child-area {
+            background: linear-gradient(135deg, #ffeaa7, #fab1a0);
+            border-radius: 40px;
+            border: 12px solid #ff9e6d;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.1);
+            position: relative;
+            overflow: hidden;
+            min-height: 300px;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .parent-child-title {
+            font-size: 36px;
+            color: #7c5cc4;
+            margin-bottom: 20px;
+            text-align: center;
+            background-color: #ffccf9;
+            padding: 12px 30px;
+            border-radius: 50px;
+            border: 4px solid #ff6b8b;
+        }
+
+        .parent-child-content {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .parent-child-item {
+            font-size: 28px;
+            color: #5a3d8a;
+            padding: 15px;
+            background-color: rgba(255, 255, 255, 0.7);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        /* 控制按钮 */
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 25px;
+            margin-top: 30px;
+        }
+
+        .control-btn {
+            background: linear-gradient(135deg, #ff6b8b, #ff9e6d);
+            color: white;
+            border: none;
+            border-radius: 40px;
+            padding: 20px 40px;
+            font-size: 28px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            transition: all 0.3s;
+        }
+
+        .control-btn:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 25px rgba(255, 107, 139, 0.5);
+        }
+
+        /* 消息弹窗 */
+        .message-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(255, 255, 255, 0.95);
+            color: #5a3d8a;
+            font-size: 32px;
+            padding: 40px 60px;
+            border-radius: 40px;
+            border: 10px solid #ff6b8b;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+            z-index: 1000;
+            text-align: center;
+            line-height: 1.5;
+            max-width: 80%;
+            display: none;
+        }
+
+        /* 分步图展示 */
+        .step-images {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            width: 100%;
+            margin: 20px 0;
+        }
+
+        .step-image-container {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .step-image-container.active {
+            display: flex;
+        }
+
+        .step-image {
+            width: 100%;
+            max-width: 500px;
+            height: auto;
+            border-radius: 20px;
+            border: 8px solid #ffd166;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+
+        .step-question {
+            font-size: 26px;
+            color: #5a3d8a;
+            text-align: center;
+            margin: 10px 0;
+        }
+
+        .step-options {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .step-nav {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .step-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #ccc;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .step-dot.active {
+            background-color: #1890ff;
+            transform: scale(1.3);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 响应式调整 */
+        @media (max-width: 1200px) {
+            .header {
+                padding: 0 30px;
+            }
+
+            .title-text {
+                font-size: 40px;
+            }
+
+            .section-content, .image-scenes {
+                flex-direction: column;
+                gap: 25px;
+            }
+
+            .image-placeholder {
+                width: 260px;
+                height: 260px;
+                font-size: 80px;
+            }
+
+            .interactive-btn, .game-btn, .control-btn {
+                font-size: 26px;
+                padding: 18px 30px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                height: auto;
+                flex-direction: column;
+                padding: 20px;
+                gap: 15px;
+            }
+
+            .title-text {
+                font-size: 32px;
+            }
+
+            .content-area {
+                padding: 20px;
+                gap: 25px;
+            }
+
+            .section-title, .reflection-title, .parent-child-title {
+                font-size: 28px;
+                padding: 10px 20px;
+            }
+
+            .section-area {
+                min-height: auto;
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 主容器 -->
+    <div class="main-container">
+        <!-- 顶部区域 -->
+        <div class="header">
+            <div class="title-text">小小哲学家：寻找我的人生意义</div>
+        </div>
+
+        <!-- 内容区域 -->
+        <div class="content-area">
+            <!-- 第一部分：开场故事区 -->
+            <div class="section-area">
+                <div class="section-title">小星星找光的故事</div>
+
+                <div class="section-content" style="justify-content: center; gap: 50px;">
+                    <div class="scene-placeholder" id="story-left" style="width: 45%; height: 350px;">
+                        <img src="imgs/yuan_01/star_night.png" alt="小星星照亮萤火虫，夜空温暖" style="width: 100%; height: 100%; object-fit: cover; border-radius: 20px;">
+                    </div>
+
+                    <div class="scene-placeholder" id="story-right" style="width: 45%; height: 350px;">
+                        <img src="imgs/yuan_01/star_lonely.png" alt="小星星只照自己，夜空冷清" style="width: 100%; height: 100%; object-fit: cover; border-radius: 20px;">
+                    </div>
+                </div>
+
+                <div class="reflection-area">
+                    <div class="reflection-title">想一想</div>
+                    <div class="reflection-content">
+                        你想让夜空变得<b>暖暖的笑起来</b>😊，还是<b>冷冷的孤零零</b>😢？
+                    </div>
+                </div>
+
+                <button class="interactive-btn" onclick="lightUpStars()">
+                    <i class="fas fa-star"></i> 点亮星空
+                </button>
+            </div>
+
+            <!-- 第二部分：古典智慧小课堂 -->
+            <div class="section-area">
+                <div class="section-title">古人的小故事</div>
+
+                <div class="reflection-area">
+                    <div class="reflection-title">心愿小树</div>
+                    <div class="reflection-content">
+                        来看看小树苗是怎么长大的吧！🌱
+                    </div>
+                </div>
+
+                <!-- 心愿小树 4 步分步图 -->
+                <div class="step-images">
+                    <!-- 第 1 步：种子 -->
+                    <div class="step-image-container active" id="tree-step-1">
+                        <img src="imgs/yuan_01/tree_seed.png" alt="孩子脚下有一颗小种子" class="step-image">
+                        <div class="step-question">这是什么呀？</div>
+                        <div class="step-options">
+                            <button class="game-btn" onclick="selectTreeStep1('种子')">🌱 种子</button>
+                            <button class="game-btn" onclick="selectTreeStep1('苹果')">🍎 苹果</button>
+                            <button class="game-btn" onclick="selectTreeStep1('石头')">🪨 石头</button>
+                        </div>
+                    </div>
+
+                    <!-- 第 2 步：发芽 -->
+                    <div class="step-image-container" id="tree-step-2">
+                        <img src="imgs/yuan_01/tree_sprout.png" alt="种子发芽，根浅浅的" class="step-image">
+                        <div class="step-question">风来了，小树苗会怎么样？</div>
+                        <div class="step-options">
+                            <button class="game-btn" onclick="selectTreeStep2('倒下')">💨 倒下</button>
+                            <button class="game-btn" onclick="selectTreeStep2('站稳')">💪 站稳</button>
+                        </div>
+                    </div>
+
+                    <!-- 第 3 步：根深 -->
+                    <div class="step-image-container" id="tree-step-3">
+                        <img src="imgs/yuan_01/tree_grow.png" alt="根变粗变深" class="step-image">
+                        <div class="step-question">根扎稳了，可以保护谁？</div>
+                        <div class="step-options">
+                            <button class="game-btn" onclick="selectTreeStep3('家人')">👨‍👩‍👧 家人</button>
+                            <button class="game-btn" onclick="selectTreeStep3('月亮')">🌙 月亮</button>
+                            <button class="game-btn" onclick="selectTreeStep3('小狗')">🐶 小狗</button>
+                        </div>
+                    </div>
+
+                    <!-- 第 4 步：成树 -->
+                    <div class="step-image-container" id="tree-step-4">
+                        <img src="imgs/yuan_01/tree_big.png" alt="大树长成给家人遮太阳" class="step-image">
+                        <div class="step-question">你种下的心愿，能让谁开心？</div>
+                        <div class="step-options">
+                            <button class="game-btn" onclick="selectTreeStep4('妈妈')">👩 妈妈</button>
+                            <button class="game-btn" onclick="selectTreeStep4('朋友')">👦 朋友</button>
+                            <button class="game-btn" onclick="selectTreeStep4('全家')">🏠 全家</button>
+                        </div>
+                    </div>
+
+                    <!-- 步骤导航点 -->
+                    <div class="step-nav">
+                        <div class="step-dot active" onclick="goToTreeStep(1)"></div>
+                        <div class="step-dot" onclick="goToTreeStep(2)"></div>
+                        <div class="step-dot" onclick="goToTreeStep(3)"></div>
+                        <div class="step-dot" onclick="goToTreeStep(4)"></div>
+                    </div>
+                </div>
+
+                <div class="reflection-area">
+                    <div class="reflection-title">影子变变变</div>
+                    <div class="reflection-content">
+                        来玩影子游戏吧！👣
+                    </div>
+                </div>
+
+                <!-- 影子变变变 3 步分步图 -->
+                <div class="step-images">
+                    <!-- 第 1 步：站在太阳下 -->
+                    <div class="step-image-container active" id="shadow-step-1">
+                        <img src="imgs/yuan_01/shadow_game.png" alt="小人站在太阳下有影子" class="step-image">
+                        <div class="step-question">这是什么呀？</div>
+                        <div class="step-options">
+                            <button class="game-btn" onclick="selectShadowStep1('影子')">👤 影子</button>
+                            <button class="game-btn" onclick="selectShadowStep1('小狗')">🐶 小狗</button>
+                            <button class="game-btn" onclick="selectShadowStep1('月亮')">🌙 月亮</button>
+                        </div>
+                    </div>
+
+                    <!-- 第 2 步：影子变化 -->
+                    <div class="step-image-container" id="shadow-step-2">
+                        <img src="imgs/yuan_01/shadow_game.png" alt="小人移动影子变化" class="step-image">
+                        <div class="step-question">影子会怎么样？</div>
+                        <div class="step-options">
+                            <button class="game-btn" onclick="selectShadowStep2('变来变去')">✨ 变来变去</button>
+                            <button class="game-btn" onclick="selectShadowStep2('睡觉')">💤 睡觉</button>
+                            <button class="game-btn" onclick="selectShadowStep2('跑掉')">🏃 跑掉</button>
+                        </div>
+                    </div>
+
+                    <!-- 第 3 步：小人微笑 -->
+                    <div class="step-image-container" id="shadow-step-3">
+                        <img src="imgs/yuan_01/shadow_game.png" alt="小人一直微笑" class="step-image">
+                        <div class="step-question">影子变了，小人变了吗？</div>
+                        <div class="step-options">
+                            <button class="game-btn" onclick="selectShadowStep3('没变')">😊 没变</button>
+                            <button class="game-btn" onclick="selectShadowStep3('变了')">😢 变了</button>
+                        </div>
+                    </div>
+
+                    <!-- 步骤导航点 -->
+                    <div class="step-nav">
+                        <div class="step-dot active" onclick="goToShadowStep(1)"></div>
+                        <div class="step-dot" onclick="goToShadowStep(2)"></div>
+                        <div class="step-dot" onclick="goToShadowStep(3)"></div>
+                    </div>
+                </div>
+
+                <div class="reflection-area">
+                    <div class="reflection-title">小溪流花园</div>
+                    <div class="reflection-content">
+                        来看看小溪是怎么帮助花园的吧！💧
+                    </div>
+                </div>
+
+                <!-- 小溪流花园 3 步分步图 -->
+                <div class="step-images">
+                    <!-- 第 1 步：干巴巴的小花 -->
+                    <div class="step-image-container active" id="stream-step-1">
+                        <img src="imgs/yuan_01/water_stream.png" alt="小溪流下来旁边有干巴巴的小花" class="step-image">
+                        <div class="step-question">小花口渴了，怎么办？</div>
+                        <div class="step-options">
+                            <button class="game-btn" onclick="selectStreamStep1('浇水')">💧 浇水</button>
+                            <button class="game-btn" onclick="selectStreamStep1('晒太阳')">🌞 晒太阳</button>
+                            <button class="game-btn" onclick="selectStreamStep1('睡觉')">💤 睡觉</button>
+                        </div>
+                    </div>
+
+                    <!-- 第 2 步：小花抬头 -->
+                    <div class="step-image-container" id="stream-step-2">
+                        <img src="imgs/yuan_01/water_stream.png" alt="小溪流到小花旁边小花抬头" class="step-image">
+                        <div class="step-question">小花喝到水了，会怎么样？</div>
+                        <div class="step-options">
+                            <button class="game-btn" onclick="selectStreamStep2('开花')">🌸 开花</button>
+                            <button class="game-btn" onclick="selectStreamStep2('哭')">😢 哭</button>
+                            <button class="game-btn" onclick="selectStreamStep2('跑掉')">🏃 跑掉</button>
+                        </div>
+                    </div>
+
+                    <!-- 第 3 步：花园开花 -->
+                    <div class="step-image-container" id="stream-step-3">
+                        <img src="imgs/yuan_01/water_stream.png" alt="整片花园都开花了" class="step-image">
+                        <div class="step-question">小溪得到奖励了吗？</div>
+                        <div class="step-options">
+                            <button class="game-btn" onclick="selectStreamStep3('没有')">❌ 没有</button>
+                            <button class="game-btn" onclick="selectStreamStep3('有')">✅ 有</button>
+                        </div>
+                    </div>
+
+                    <!-- 步骤导航点 -->
+                    <div class="step-nav">
+                        <div class="step-dot active" onclick="goToStreamStep(1)"></div>
+                        <div class="step-dot" onclick="goToStreamStep(2)"></div>
+                        <div class="step-dot" onclick="goToStreamStep(3)"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 第三部分：发现闪闪发光的你 -->
+            <div class="section-area">
+                <div class="section-title">发现闪闪发光的你</div>
+
+                <div class="reflection-area">
+                    <div class="reflection-title">镜子里的我</div>
+                    <div class="reflection-content">
+                        来看看你有哪些小光芒吧！✨
+                    </div>
+                </div>
+
+                <!-- 镜子里的我 2 步分步图 -->
+                <div class="step-images">
+                    <!-- 第 1 步：镜子 -->
+                    <div class="step-image-container active" id="mirror-step-1">
+                        <img src="imgs/yuan_01/self_mirror.png" alt="镜子照出孩子" class="step-image">
+                        <div class="step-question">你做过哪些让别人开心的事？</div>
+                        <div class="step-options">
+                            <button class="game-btn" onclick="selectMirrorStep1('分享玩具')">🎁 分享玩具</button>
+                            <button class="game-btn" onclick="selectMirrorStep1('抱朋友')">🤗 抱一抱朋友</button>
+                            <button class="game-btn" onclick="selectMirrorStep1('帮妈妈')">🧹 帮妈妈收拾</button>
+                        </div>
+                    </div>
+
+                    <!-- 第 2 步：光圈亮了 -->
+                    <div class="step-image-container" id="mirror-step-2">
+                        <img src="imgs/yuan_01/self_mirror.png" alt="镜子周围光圈亮了" class="step-image">
+                        <div class="step-question">看，你有这么多小光芒！✨</div>
+                        <div class="step-options">
+                            <button class="game-btn" onclick="selectMirrorStep2('开心')">😊 好开心</button>
+                            <button class="game-btn" onclick="selectMirrorStep2('骄傲')">💪 好骄傲</button>
+                        </div>
+                    </div>
+
+                    <!-- 步骤导航点 -->
+                    <div class="step-nav">
+                        <div class="step-dot active" onclick="goToMirrorStep(1)"></div>
+                        <div class="step-dot" onclick="goToMirrorStep(2)"></div>
+                    </div>
+                </div>
+
+                <div class="reflection-area">
+                    <div class="reflection-title">气球变变变</div>
+                    <div class="reflection-content">
+                        来感受紧张和轻松吧！🎈
+                    </div>
+                </div>
+
+                <!-- 气球变变变 3 步分步图 -->
+                <div class="step-images">
+                    <!-- 第 1 步：小气球轻松 -->
+                    <div class="step-image-container active" id="balloon-step-1">
+                        <img src="imgs/yuan_01/balloon_contrast.png" alt="小人拿着小气球表情轻松" class="step-image">
+                        <div class="step-question">气球小小的，小人感觉怎么样？</div>
+                        <div class="step-options">
+                            <button class="game-btn" onclick="selectBalloonStep1('轻松')">😊 轻松</button>
+                            <button class="game-btn" onclick="selectBalloonStep1('紧张')">😰 紧张</button>
+                        </div>
+                    </div>
+
+                    <!-- 第 2 步：大气球紧张 -->
+                    <div class="step-image-container" id="balloon-step-2">
+                        <img src="imgs/yuan_01/balloon_contrast.png" alt="气球很大小人紧张出汗" class="step-image">
+                        <div class="step-question">气球好大了，小人感觉怎么样？</div>
+                        <div class="step-options">
+                            <button class="game-btn" onclick="selectBalloonStep2('好紧张')">😰 好紧张</button>
+                            <button class="game-btn" onclick="selectBalloonStep2('好开心')">😊 好开心</button>
+                        </div>
+                    </div>
+
+                    <!-- 第 3 步：放气轻松 -->
+                    <div class="step-image-container" id="balloon-step-3">
+                        <img src="imgs/yuan_01/balloon_contrast.png" alt="气球放气小人轻松笑了" class="step-image">
+                        <div class="step-question">气球放气了，小人感觉怎么样？</div>
+                        <div class="step-options">
+                            <button class="game-btn" onclick="selectBalloonStep3('轻松了')">😊 轻松了</button>
+                            <button class="game-btn" onclick="selectBalloonStep3('难过了')">😢 难过了</button>
+                        </div>
+                    </div>
+
+                    <!-- 步骤导航点 -->
+                    <div class="step-nav">
+                        <div class="step-dot active" onclick="goToBalloonStep(1)"></div>
+                        <div class="step-dot" onclick="goToBalloonStep(2)"></div>
+                        <div class="step-dot" onclick="goToBalloonStep(3)"></div>
+                    </div>
+                </div>
+
+                <div class="reflection-area">
+                    <div class="reflection-title">帮助别人的快乐</div>
+                    <div class="reflection-content">
+                        来看看帮助别人的感觉吧！💖
+                    </div>
+                </div>
+
+                <!-- 帮助别人的快乐 3 个场景 -->
+                <div class="step-images">
+                    <!-- 场景 1：小朋友摔倒 -->
+                    <div class="step-image-container active" id="help-step-1">
+                        <img src="imgs/yuan_01/share_love.png" alt="小朋友摔倒了" class="step-image">
+                        <div class="step-question">小朋友摔倒了，你帮他站起来，他笑了！</div>
+                        <div class="step-options">
+                            <button class="game-btn" onclick="selectHelpStep1('开心')">😊 开心</button>
+                            <button class="game-btn" onclick="selectHelpStep1('没什么')">😐 没什么</button>
+                        </div>
+                    </div>
+
+                    <!-- 场景 2：老奶奶拿不动 -->
+                    <div class="step-image-container" id="help-step-2">
+                        <img src="imgs/yuan_01/share_love.png" alt="老奶奶拿不动东西" class="step-image">
+                        <div class="step-question">你帮老奶奶拿东西，她说"谢谢你"！</div>
+                        <div class="step-options">
+                            <button class="game-btn" onclick="selectHelpStep2('暖暖的')">😊 暖暖的</button>
+                            <button class="game-btn" onclick="selectHelpStep2('没什么')">😐 没什么</button>
+                        </div>
+                    </div>
+
+                    <!-- 场景 3：小猫咪饿了 -->
+                    <div class="step-image-container" id="help-step-3">
+                        <img src="imgs/yuan_01/share_love.png" alt="小猫咪饿了" class="step-image">
+                        <div class="step-question">你喂小猫咪吃饭，它蹭蹭你！</div>
+                        <div class="step-options">
+                            <button class="game-btn" onclick="selectHelpStep3('好开心')">😊 好开心</button>
+                            <button class="game-btn" onclick="selectHelpStep3('没什么')">😐 没什么</button>
+                        </div>
+                    </div>
+
+                    <!-- 步骤导航点 -->
+                    <div class="step-nav">
+                        <div class="step-dot active" onclick="goToHelpStep(1)"></div>
+                        <div class="step-dot" onclick="goToHelpStep(2)"></div>
+                        <div class="step-dot" onclick="goToHelpStep(3)"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 徽章激励 -->
+            <div class="section-area" style="min-height: 300px;">
+                <div class="section-title">你获得的徽章</div>
+
+                <div class="badge-area">
+                    <div class="badge" id="badge1" title="思考小达人">
+                        <i class="fas fa-lightbulb"></i>
+                    </div>
+                    <div class="badge" id="badge2" title="爱心小天使">
+                        <i class="fas fa-heart"></i>
+                    </div>
+                    <div class="badge" id="badge3" title="探索小能手">
+                        <i class="fas fa-medal"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 亲子延伸活动 -->
+            <div class="parent-child-area">
+                <div class="parent-child-title">和爸爸妈妈一起玩</div>
+
+                <div class="parent-child-content">
+                    <div class="parent-child-item">
+                        <i class="fas fa-home"></i> 找一找：家里谁像小溪一样帮助别人？
+                    </div>
+                    <div class="parent-child-item">
+                        <i class="fas fa-lightbulb"></i> 说一说：今天发现了自己哪些小光芒？
+                    </div>
+                </div>
+            </div>
+
+            <!-- 控制按钮 -->
+            <div class="controls">
+                <button class="control-btn" onclick="saveProgress()">
+                    <i class="fas fa-star"></i> 继续探索
+                </button>
+                <button class="control-btn" onclick="clearProgress()" style="background: linear-gradient(135deg, #ff9e6d, #ff6b8b);">
+                    <i class="fas fa-redo"></i> 重新开始
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 消息弹窗 -->
+    <div class="message-popup" id="messagePopup"></div>
+
+    <script>
+        // 初始化变量
+        let progressData = {
+            starsLit: 0,
+            wishTreePlanted: false,
+            shadowExplored: false,
+            gardenWatered: false,
+            strengthsSelected: [],
+            balloonPopped: false,
+            loveShared: false,
+            badgesEarned: []
+        };
+
+        const STORAGE_KEY = 'philosopher_journey_progress';
+
+        // 页面加载时恢复进度
+        window.onload = function() {
+            loadProgress();
+        };
+
+        // 显示消息
+        function showMessage(text) {
+            const popup = document.getElementById('messagePopup');
+            popup.textContent = text;
+            popup.style.display = 'block';
+
+            setTimeout(() => {
+                popup.style.display = 'none';
+            }, 3000);
+        }
+
+        // ========== 心愿小树 分步图逻辑 ==========
+        let treeStep = 1;
+        function goToTreeStep(step) {
+            for (let i = 1; i <= 4; i++) {
+                document.getElementById(`tree-step-${i}`).classList.remove('active');
+                document.querySelectorAll('.step-nav')[0].children[i-1].classList.remove('active');
+            }
+            document.getElementById(`tree-step-${step}`).classList.add('active');
+            document.querySelectorAll('.step-nav')[0].children[step-1].classList.add('active');
+            treeStep = step;
+        }
+
+        function selectTreeStep1(answer) {
+            showMessage(`🌱 对啦，是${answer}！`);
+            setTimeout(() => goToTreeStep(2), 800);
+        }
+
+        function selectTreeStep2(answer) {
+            showMessage(`💨 风来了，小树苗${answer}了！`);
+            setTimeout(() => goToTreeStep(3), 800);
+        }
+
+        function selectTreeStep3(answer) {
+            showMessage(`👨‍👩‍👧 根扎稳了，可以保护${answer}！`);
+            setTimeout(() => goToTreeStep(4), 800);
+        }
+
+        function selectTreeStep4(answer) {
+            showMessage(`✨ 你种下的心愿能让${answer}开心！`);
+            progressData.wishTreePlanted = true;
+            checkBadge('badge2');
+            saveProgress();
+        }
+
+        // ========== 影子变变变 分步图逻辑 ==========
+        let shadowStep = 1;
+        function goToShadowStep(step) {
+            for (let i = 1; i <= 3; i++) {
+                document.getElementById(`shadow-step-${i}`).classList.remove('active');
+                document.querySelectorAll('.step-nav')[1].children[i-1].classList.remove('active');
+            }
+            document.getElementById(`shadow-step-${step}`).classList.add('active');
+            document.querySelectorAll('.step-nav')[1].children[step-1].classList.add('active');
+            shadowStep = step;
+        }
+
+        function selectShadowStep1(answer) {
+            showMessage(`👤 对啦，是${answer}！`);
+            setTimeout(() => goToShadowStep(2), 800);
+        }
+
+        function selectShadowStep2(answer) {
+            showMessage(`✨ 影子会${answer}！`);
+            setTimeout(() => goToShadowStep(3), 800);
+        }
+
+        function selectShadowStep3(answer) {
+            if (answer === '没变') {
+                showMessage(`😊 对啦！真正的你，一直在这里💖`);
+            } else {
+                showMessage(`再想想看～`);
+                return;
+            }
+            progressData.shadowExplored = true;
+            checkBadge('badge1');
+            saveProgress();
+        }
+
+        // ========== 小溪流花园 分步图逻辑 ==========
+        let streamStep = 1;
+        function goToStreamStep(step) {
+            for (let i = 1; i <= 3; i++) {
+                document.getElementById(`stream-step-${i}`).classList.remove('active');
+                document.querySelectorAll('.step-nav')[2].children[i-1].classList.remove('active');
+            }
+            document.getElementById(`stream-step-${step}`).classList.add('active');
+            document.querySelectorAll('.step-nav')[2].children[step-1].classList.add('active');
+            streamStep = step;
+        }
+
+        function selectStreamStep1(answer) {
+            showMessage(`💧 对，给小花${answer}！`);
+            setTimeout(() => goToStreamStep(2), 800);
+        }
+
+        function selectStreamStep2(answer) {
+            showMessage(`🌸 小花${answer}了！`);
+            setTimeout(() => goToStreamStep(3), 800);
+        }
+
+        function selectStreamStep3(answer) {
+            if (answer === '没有') {
+                showMessage(`✨ 小溪没要奖励，但花园变美了！`);
+            } else {
+                showMessage(`再想想看～`);
+                return;
+            }
+            progressData.gardenWatered = true;
+            checkBadge('badge3');
+            saveProgress();
+        }
+
+        // ========== 镜子里的我 分步图逻辑 ==========
+        let mirrorStep = 1;
+        function goToMirrorStep(step) {
+            for (let i = 1; i <= 2; i++) {
+                document.getElementById(`mirror-step-${i}`).classList.remove('active');
+                document.querySelectorAll('.step-nav')[3].children[i-1].classList.remove('active');
+            }
+            document.getElementById(`mirror-step-${step}`).classList.add('active');
+            document.querySelectorAll('.step-nav')[3].children[step-1].classList.add('active');
+            mirrorStep = step;
+        }
+
+        function selectMirrorStep1(answer) {
+            showMessage(`✨ 你${answer}了，好棒！`);
+            setTimeout(() => goToMirrorStep(2), 800);
+        }
+
+        function selectMirrorStep2(answer) {
+            showMessage(`😊 看到你这么${answer}，真好！`);
+            progressData.strengthsSelected.push('镜子里的我');
+            checkBadge('badge2');
+            saveProgress();
+        }
+
+        // ========== 气球变变变 分步图逻辑 ==========
+        let balloonStep = 1;
+        function goToBalloonStep(step) {
+            for (let i = 1; i <= 3; i++) {
+                document.getElementById(`balloon-step-${i}`).classList.remove('active');
+                document.querySelectorAll('.step-nav')[4].children[i-1].classList.remove('active');
+            }
+            document.getElementById(`balloon-step-${step}`).classList.add('active');
+            document.querySelectorAll('.step-nav')[4].children[step-1].classList.add('active');
+            balloonStep = step;
+        }
+
+        function selectBalloonStep1(answer) {
+            showMessage(`😊 对，气球小小的很${answer}！`);
+            setTimeout(() => goToBalloonStep(2), 800);
+        }
+
+        function selectBalloonStep2(answer) {
+            if (answer === '好紧张') {
+                showMessage(`😰 对，气球越大越怕爆炸！`);
+            } else {
+                showMessage(`再想想看～`);
+                return;
+            }
+            setTimeout(() => goToBalloonStep(3), 800);
+        }
+
+        function selectBalloonStep3(answer) {
+            if (answer === '轻松了') {
+                showMessage(`💨 对，放气后变${answer}！`);
+            } else {
+                showMessage(`再想想看～`);
+                return;
+            }
+            progressData.balloonPopped = true;
+            checkBadge('badge1');
+            saveProgress();
+        }
+
+        // ========== 帮助别人的快乐 分步图逻辑 ==========
+        let helpStep = 1;
+        function goToHelpStep(step) {
+            for (let i = 1; i <= 3; i++) {
+                document.getElementById(`help-step-${i}`).classList.remove('active');
+                document.querySelectorAll('.step-nav')[5].children[i-1].classList.remove('active');
+            }
+            document.getElementById(`help-step-${step}`).classList.add('active');
+            document.querySelectorAll('.step-nav')[5].children[step-1].classList.add('active');
+            helpStep = step;
+        }
+
+        function selectHelpStep1(answer) {
+            if (answer === '开心') {
+                showMessage(`😊 帮助别人，自己也${answer}！`);
+            } else {
+                showMessage(`嗯，每个人感觉不一样～`);
+            }
+            setTimeout(() => goToHelpStep(2), 800);
+        }
+
+        function selectHelpStep2(answer) {
+            if (answer === '暖暖的') {
+                showMessage(`💖 对，心里${answer}的！`);
+            } else {
+                showMessage(`嗯，继续看～`);
+            }
+            setTimeout(() => goToHelpStep(3), 800);
+        }
+
+        function selectHelpStep3(answer) {
+            if (answer === '好开心') {
+                showMessage(`💝 你帮助了 3 个朋友，他们都很开心！`);
+            } else {
+                showMessage(`嗯，每个人的感觉都不一样～`);
+            }
+            progressData.loveShared = true;
+            checkBadge('badge3');
+            saveProgress();
+        }
+
+        // 第一部分：点亮星空游戏
+        function lightUpStars() {
+            progressData.starsLit += 1;
+            showMessage(`✨ 已点亮 ${progressData.starsLit} 颗星星！`);
+
+            // 简单的动画效果
+            const star = document.createElement('div');
+            star.innerHTML = '⭐';
+            star.style.position = 'fixed';
+            star.style.left = (Math.random() * window.innerWidth) + 'px';
+            star.style.top = (Math.random() * window.innerHeight) + 'px';
+            star.style.fontSize = (30 + Math.random() * 30) + 'px';
+            star.style.zIndex = '999';
+            star.style.pointerEvents = 'none';
+            document.body.appendChild(star);
+
+            setTimeout(() => {
+                document.body.removeChild(star);
+            }, 2000);
+
+            checkBadge('badge1');
+            saveProgress();
+        }
+
+        // 设置心愿
+        let currentWish = '';
+        function setWish(wish) {
+            currentWish = wish;
+            showMessage(`🌱 你选择了："${wish}"`);
+        }
+
+        // 第二部分：种下心愿树
+        function plantWishTree() {
+            if (!currentWish) {
+                showMessage('请先选择一个心愿哦！');
+                return;
+            }
+
+            progressData.wishTreePlanted = true;
+            showMessage(`🌱 你的心愿 "${currentWish}" 已种下，小树苗开始成长啦！`);
+
+            // 更改树的图像
+            document.getElementById('tree-img').src = 'imgs/yuan_01/wish_tree.png';
+            document.getElementById('tree-img').alt = '孩子心愿树已成长';
+
+            checkBadge('badge2');
+            saveProgress();
+        }
+
+        // 第二部分：影子游戏
+        function playShadowGame() {
+            progressData.shadowExplored = true;
+            showMessage('👣 你发现了影子的秘密！真正的自己比外表更重要呢！');
+
+            // 更改影子的图像
+            document.getElementById('shadow-img').src = 'imgs/yuan_01/shadow_game.png';
+            document.getElementById('shadow-img').alt = '影子游戏完成';
+
+            checkBadge('badge1');
+            saveProgress();
+        }
+
+        // 第二部分：水流花园
+        function waterGarden() {
+            progressData.gardenWatered = true;
+            showMessage('💧 小溪帮助了花园里的植物，你也像小溪一样善良！');
+
+            // 更改水的图像
+            document.getElementById('stream-img').src = 'imgs/yuan_01/water_stream.png';
+            document.getElementById('stream-img').alt = '小溪浇灌花园';
+
+            checkBadge('badge3');
+            saveProgress();
+        }
+
+        // 第三部分：选择优点
+        function selectStrength(strength) {
+            if (!progressData.strengthsSelected.includes(strength)) {
+                progressData.strengthsSelected.push(strength);
+            }
+
+            showMessage(`💖 你的"${strength}"是特别的光芒！`);
+
+            checkBadge('badge2');
+            saveProgress();
+        }
+
+        // 第三部分：气球放气
+        function popBalloon() {
+            if (progressData.balloonPopped) {
+                showMessage('🎈 气球已经放气变轻松啦！');
+                return;
+            }
+
+            progressData.balloonPopped = true;
+            showMessage('😮‍💨 气球放气了，感觉轻松多了！');
+
+            // 更改气球的图像
+            document.getElementById('balloon-img').src = 'imgs/yuan_01/balloon_contrast.png';
+            document.getElementById('balloon-img').alt = '气球已放气';
+
+            checkBadge('badge1');
+            saveProgress();
+        }
+
+        // 第三部分：传递爱心
+        function shareLove() {
+            if (progressData.loveShared) {
+                showMessage('💝 你已经传递过爱心啦！');
+                return;
+            }
+
+            progressData.loveShared = true;
+            showMessage('💝 你成功传递了爱心，感受到了帮助他人的快乐！');
+
+            // 更改爱心的图像
+            document.getElementById('sharing-img').src = 'imgs/yuan_01/share_love.png';
+            document.getElementById('sharing-img').alt = '爱心传递完成';
+
+            checkBadge('badge3');
+            saveProgress();
+        }
+
+        // 检查徽章获取条件
+        function checkBadge(badgeId) {
+            if (!progressData.badgesEarned.includes(badgeId)) {
+                progressData.badgesEarned.push(badgeId);
+                document.getElementById(badgeId).style.transform = 'scale(1.2)';
+                setTimeout(() => {
+                    document.getElementById(badgeId).style.transform = 'scale(1)';
+                }, 1000);
+
+                showMessage('🏅 恭喜获得新徽章！');
+            }
+        }
+
+        // 保存进度
+        function saveProgress() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(progressData));
+            showMessage('💾 进度已保存！');
+        }
+
+        // 加载进度
+        function loadProgress() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                try {
+                    const data = JSON.parse(saved);
+                    Object.assign(progressData, data);
+
+                    // 根据进度恢复界面状态
+                    if (progressData.wishTreePlanted) {
+                        document.getElementById('tree-img').src = 'imgs/yuan_01/wish_tree.png';
+                        document.getElementById('tree-img').alt = '孩子脚下长出心愿树';
+                    }
+                    if (progressData.shadowExplored) {
+                        document.getElementById('shadow-img').src = 'imgs/yuan_01/shadow_game.png';
+                        document.getElementById('shadow-img').alt = '卡通小人追影子游戏';
+                    }
+                    if (progressData.gardenWatered) {
+                        document.getElementById('stream-img').src = 'imgs/yuan_01/water_stream.png';
+                        document.getElementById('stream-img').alt = '小溪流过花园滋润植物';
+                    }
+                    if (progressData.balloonPopped) {
+                        document.getElementById('balloon-img').src = 'imgs/yuan_01/balloon_contrast.png';
+                        document.getElementById('balloon-img').alt = '膨胀气球与平和小人对比';
+                    }
+                    if (progressData.loveShared) {
+                        document.getElementById('sharing-img').src = 'imgs/yuan_01/share_love.png';
+                        document.getElementById('sharing-img').alt = '小朋友分享帮助日常场景';
+                    }
+
+                    // 恢复徽章状态
+                    progressData.badgesEarned.forEach(id => {
+                        document.getElementById(id).style.transform = 'scale(1.2)';
+                        setTimeout(() => {
+                            document.getElementById(id).style.transform = 'scale(1)';
+                        }, 100);
+                    });
+                } catch (e) {
+                    console.error("Failed to load progress:", e);
+                }
+            }
+        }
+
+        // 清空进度
+        function clearProgress() {
+            if (confirm('确定要清空所有进度吗？这将重置你的所有数据和徽章。')) {
+                progressData = {
+                    starsLit: 0,
+                    wishTreePlanted: false,
+                    shadowExplored: false,
+                    gardenWatered: false,
+                    strengthsSelected: [],
+                    balloonPopped: false,
+                    loveShared: false,
+                    badgesEarned: []
+                };
+
+                // 重置界面
+                document.getElementById('tree-img').src = 'imgs/yuan_01/wish_tree.png';
+                document.getElementById('tree-img').alt = '孩子脚下长出心愿树';
+                document.getElementById('shadow-img').src = 'imgs/yuan_01/shadow_game.png';
+                document.getElementById('shadow-img').alt = '卡通小人追影子游戏';
+                document.getElementById('stream-img').src = 'imgs/yuan_01/water_stream.png';
+                document.getElementById('stream-img').alt = '小溪流过花园滋润植物';
+                document.getElementById('mirror-img').src = 'imgs/yuan_01/self_mirror.png';
+                document.getElementById('mirror-img').alt = '卡通镜子显示孩子特点';
+                document.getElementById('balloon-img').src = 'imgs/yuan_01/balloon_contrast.png';
+                document.getElementById('balloon-img').alt = '膨胀气球与平和小人对比';
+                document.getElementById('sharing-img').src = 'imgs/yuan_01/share_love.png';
+                document.getElementById('sharing-img').alt = '小朋友分享帮助日常场景';
+
+                // 重置徽章
+                document.querySelectorAll('.badge').forEach(badge => {
+                    badge.style.transform = 'scale(1)';
+                });
+
+                // 重置心愿
+                currentWish = '';
+
+                localStorage.removeItem(STORAGE_KEY);
+                showMessage('🗑️ 所有进度已清空！');
+            }
+        }
+    </script>
+</body>
+</html>
