@@ -3,6 +3,7 @@ import sys
 import json
 import argparse
 import time
+import threading
 from openai import OpenAI
 
 import settings
@@ -159,24 +160,42 @@ def call_llm_stream(prompt):
     return full
 
 
-def call_llm_batch(prompt):
+def call_llm_batch(prompt, heartbeat_callback=None):
+    stop_event = threading.Event()
+
+    def _heartbeat():
+        while not stop_event.wait(30):
+            if heartbeat_callback:
+                msg = heartbeat_callback()
+                info(msg if msg else "[LLM] still waiting for response ...")
+            else:
+                info("[LLM] still waiting for response ...")
+
+    heartbeat_thread = threading.Thread(target=_heartbeat, daemon=True)
+    heartbeat_thread.start()
+
     client = OpenAI(
         api_key=settings.BAILIAN_API_KEY,
         base_url="https://coding.dashscope.aliyuncs.com/v1",
         timeout=900,
     )
     start = time.time()
-    response = client.chat.completions.create(
-        model="qwen3.5-plus",
-        messages=[
-            {
-                "role": "system",
-                "content": "You are a senior short video copywriter well-versed in the dissemination patterns of the TikTok platform.",
-            },
-            {"role": "user", "content": prompt},
-        ],
-        stream=False,
-    )
+    try:
+        response = client.chat.completions.create(
+            model="qwen3.5-plus",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a senior short video copywriter well-versed in the dissemination patterns of the TikTok platform.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            stream=False,
+        )
+    finally:
+        stop_event.set()
+        heartbeat_thread.join(timeout=1)
+
     info(f"[LLM] batch call duration: {round(time.time() - start, 2)} s")
     return response.choices[0].message.content
 
@@ -293,18 +312,18 @@ def run_phase4(video_path, keep_intervals, video_id):
     return output_path
 
 
-def run_phase1_batch(video_id, srt_path, output_path):
+def run_phase1_batch(video_id, srt_path, output_path, heartbeat_callback=None):
     srt_content = open(srt_path, "r", encoding="utf-8").read()
     full_prompt = PHASE1_PROMPT + "\n\n" + srt_content
-    result = call_llm_batch(full_prompt)
+    result = call_llm_batch(full_prompt, heartbeat_callback=heartbeat_callback)
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(result)
     return result
 
 
-def run_phase2_batch(video_id, phase1_content, output_path):
+def run_phase2_batch(video_id, phase1_content, output_path, heartbeat_callback=None):
     full_prompt = PHASE2_PROMPT + "\n" + phase1_content
-    result = call_llm_batch(full_prompt)
+    result = call_llm_batch(full_prompt, heartbeat_callback=heartbeat_callback)
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(result)
     return result
