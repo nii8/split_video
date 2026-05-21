@@ -92,6 +92,70 @@ ffmpeg 按时间段裁剪 -> output.mp4
 | 看批量主入口 | `batch_generator.py` |
 | 看 LLM 调用、日志、通用工具 | `shared/` |
 
+## Python 文件分组
+
+主业务 phase：
+
+```text
+phase1_select/
+├── prompts.py       # Phase1 的 PROMPT_VIDEO / PROMPT_5MIN / PROMPT_SHORT
+└── runner.py        # run_phase1 / run_phase1_batch
+
+phase2_rewrite/
+├── prompts.py       # Phase2 的 PROMPT_VIDEO / PROMPT_5MIN / PROMPT_5MIN_EXPAND / PROMPT_SHORT
+└── runner.py        # run_phase2 / run_phase2_batch
+
+phase3_match/
+└── runner.py        # run_phase3 / get_keep_intervals，目前包装 make_time
+
+phase4_cut/
+└── runner.py        # run_phase4 / cut_video，目前包装 make_video
+```
+
+批量系统：
+
+```text
+batch/runner/
+└── phase_runner.py  # run_phase1_loop / run_phase2_loop / run_phase3_loop
+
+batch/scoring/
+├── evaluator.py           # 基础机器评分
+├── transition_scorer.py   # 转场、碎片、跳跃评分
+├── visual_scorer.py       # 视觉评分
+├── frame_sampler.py       # 抽帧
+└── image_grid.py          # 拼九宫格
+
+batch/multi_video/
+├── selector.py      # 多视频输入结构
+├── pool_builder.py  # 单视频片段池
+├── combiner.py      # 主/副视频组合候选
+└── scorer.py        # 多视频候选评分
+
+batch/debug/
+├── visual_debug.py
+└── visual_debug_standalone.py
+```
+
+公共工具：
+
+```text
+shared/
+├── llm_caller.py    # call_llm_batch / call_llm_stream
+├── logger.py        # BatchLogger
+├── output.py        # info / warn / error / debug
+└── utils.py         # 通用小工具
+```
+
+入口文件：
+
+```text
+main.py                  # 单视频 CLI
+scripts/run_5min.py      # 5 分钟版批处理
+scripts/run_short.py     # 短精华版批处理
+batch_generator.py       # 批量候选、评分、选优入口
+skill.py                 # 外部系统调用入口
+```
+
 ## 主要入口
 
 ### 1. CLI 单视频入口
@@ -99,6 +163,15 @@ ffmpeg 按时间段裁剪 -> output.mp4
 ```bash
 cd sp_video
 python main.py --input_video data/hanbing/VIDEO_ID/VIDEO_ID.mp4 --input_srt data/hanbing/VIDEO_ID/VIDEO_ID.srt --stage 4
+```
+
+参数：
+
+```text
+--input_video    视频路径，.mp4
+--input_srt      字幕路径，.srt
+--output_dir     中间文件输出目录，不传则默认视频所在目录
+--stage          执行到第几阶段，1/2/3/4，默认 4
 ```
 
 阶段说明：
@@ -115,6 +188,21 @@ cd sp_video
 python scripts/run_5min.py --video_dir data/video --output_dir data/output_5min
 ```
 
+参数：
+
+```text
+--video_dir     输入目录，默认 data/video，目录里需要同名 mp4 + srt
+--output_dir    输出目录
+--force         输出已存在时强制重跑
+--log_root      日志归档目录，每次运行新建子目录
+--video_id      只处理指定 video_id
+--init_tasks    初始化任务文件，默认不覆盖已有任务文件
+--auto          自动循环领取 pending 任务，直到没有任务
+--task_file     任务状态 JSON 文件路径
+--ffmpeg_lock_file  ffmpeg 串行锁文件路径
+--worker_id     可选调试标记，写入任务状态文件
+```
+
 说明：
 
 - 输入目录需要包含同名 `.mp4` 和 `.srt`
@@ -127,11 +215,47 @@ python scripts/run_5min.py --video_dir data/video --output_dir data/output_5min
 python scripts/run_5min.py --video_dir data/video --output_dir data/output_5min --force
 ```
 
+只跑指定视频：
+
+```bash
+python scripts/run_5min.py --video_dir data/video --output_dir data/output_5min --video_id 001_zuo
+```
+
+多进程自动领取任务：
+
+```bash
+python scripts/run_5min.py --init_tasks --video_dir data/video --output_dir data/output_5min
+python scripts/run_5min.py --auto --video_dir data/video --output_dir data/output_5min
+```
+
+如果视频目录有 10 个视频，可以开 5 个终端，每个终端都运行同一条 `--auto` 命令。每个进程会自动领取 `pending` 视频，处理完后继续领取下一个，直到没有任务。
+
+任务文件默认路径：
+
+```text
+data/run_state/run_5min_tasks.json
+```
+
 ### 3. 短精华版单视频压缩
 
 ```bash
 cd sp_video
 python scripts/run_short.py --video_dir data/video --output_dir data/output_short
+```
+
+参数：
+
+```text
+--video_dir     输入目录，默认 data/video，目录里需要同名 mp4 + srt
+--output_dir    输出目录，默认 data/output_short
+--force         输出已存在时强制重跑
+--log_root      日志归档目录，每次运行新建子目录
+--video_id      只处理指定 video_id
+--init_tasks    初始化任务文件，默认不覆盖已有任务文件
+--auto          自动循环领取 pending 任务，直到没有任务
+--task_file     任务状态 JSON 文件路径
+--ffmpeg_lock_file  ffmpeg 串行锁文件路径
+--worker_id     可选调试标记，写入任务状态文件
 ```
 
 说明：
@@ -140,12 +264,41 @@ python scripts/run_short.py --video_dir data/video --output_dir data/output_shor
 - 目标输出约 60 到 150 秒
 - 不含 retry
 
+只跑指定视频：
+
+```bash
+python scripts/run_short.py --video_dir data/video --output_dir data/output_short --video_id 001_zuo
+```
+
+多进程自动领取任务：
+
+```bash
+python scripts/run_short.py --init_tasks --video_dir data/video --output_dir data/output_short
+python scripts/run_short.py --auto --video_dir data/video --output_dir data/output_short
+```
+
+任务文件默认路径：
+
+```text
+data/run_state/run_short_tasks.json
+```
+
+`run_5min.py` 和 `run_short.py` 默认共用同一个 ffmpeg 锁：
+
+```text
+data/run_state/ffmpeg.lock
+```
+
+因此可以多个进程并发跑 Phase1/2/3，但同一时间只有一个进程会进入 ffmpeg 裁剪阶段。
+
 ### 4. 批量生成入口
 
 ```bash
 cd sp_video
 python batch_generator.py
 ```
+
+`batch_generator.py` 没有命令行参数，主要通过 `settings.py` 配置。
 
 说明：
 
@@ -162,6 +315,13 @@ BATCH_TEST_PHASE1_COUNT = 3
 BATCH_TEST_PHASE2_COUNT = 20
 ```
 
+如果只想快速验收链路，可以进一步临时降低：
+
+```python
+BATCH_PHASE1_COUNT = 1
+BATCH_PHASE2_COUNT = 1
+```
+
 ### 5. OpenClaw / 外部系统入口
 
 ```bash
@@ -172,11 +332,90 @@ python skill.py phase2 --video_id VIDEO_ID --force
 python skill.py generate --video_id VIDEO_ID
 ```
 
+命令和参数：
+
+```text
+list
+  查询 OSS 视频列表并更新摘要缓存
+
+start --video_id VIDEO_ID [--clear_cache]
+  下载/准备视频，执行 Phase1
+
+phase2 --video_id VIDEO_ID [--prompt_file FILE] [--use_cache] [--force]
+  执行 Phase2 + Phase3
+
+generate --video_id VIDEO_ID
+  执行 Phase4，生成并上传视频
+```
+
 `skill.py` 不再依赖 `main.py`。自定义 Phase2 prompt 通过 `--prompt_file` 传入：
 
 ```bash
 python skill.py phase2 --video_id VIDEO_ID --prompt_file prompt.txt --force
 ```
+
+## settings.py 参数
+
+常用输入输出配置：
+
+```python
+DATA_DIR = "./data/hanbing"
+BATCH_RESULTS_DIR = "./data/batch_results"
+BATCH_LOG_FILE = "./data/batch_log.jsonl"
+```
+
+批量生成数量：
+
+```python
+BATCH_PHASE1_COUNT = 20
+BATCH_PHASE2_COUNT = 100
+BATCH_SINGLE_VIDEO_TARGET_PER_SOURCE = 10
+```
+
+候选筛选和时长分布：
+
+```python
+BATCH_SCORE_THRESHOLD = 7.0
+BATCH_DURATION_BUCKETS = [
+    {"label": "20-30s", "min_sec": 20, "max_sec": 30, "probability": 0.12},
+    ...
+]
+```
+
+多视频模式：
+
+```python
+BATCH_MULTI_VIDEO_ENABLE = False
+BATCH_MIN_MULTI_VIDEO_DURATION_SEC = 18.0
+BATCH_MULTI_VIDEO_TARGET_COUNT = 100
+BATCH_MULTI_VIDEO_CANDIDATE_COUNT = 150
+```
+
+视觉评分和转场评分：
+
+```python
+BATCH_VISUAL_ENABLE = False
+BATCH_VISUAL_TOPN = 2
+BATCH_VISUAL_SAMPLE_EVERY_SEC = 2
+BATCH_VISUAL_MAX_FRAMES = 9
+BATCH_VISUAL_USE_LLM = False
+
+BATCH_TRANSITION_ENABLE = False
+```
+
+测试模式：
+
+```python
+BATCH_TEST_MODE = False
+BATCH_TEST_PHASE1_COUNT = 3
+BATCH_TEST_PHASE2_COUNT = 20
+```
+
+说明：
+
+- 开发或测试链路时，可以把 `BATCH_TEST_MODE` 改成 `True`
+- 真实生产建议保持 `BATCH_TEST_MODE = False`
+- 如果不想调用视觉 LLM，保持 `BATCH_VISUAL_USE_LLM = False`
 
 ## 不触发 LLM 的本地检查
 
@@ -297,4 +536,3 @@ python batch_generator.py
 python skill.py start ...
 python skill.py phase2 ...
 ```
-
