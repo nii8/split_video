@@ -48,21 +48,24 @@ sp_video/
 │   └── logger.py                      # BatchLogger，从 batch/logger.py 迁入
 │
 ├── batch/                             # sp_video独有：批量生成 + 评分 + 选优
+│   ├── runner/
+│   │   └── phase_runner.py            # [执行层] 批量跑Phase1/2/3，生成候选池
 │   │
-│   ├── phase_runner.py                # [执行层] 批量跑Phase1/2/3，生成候选池
+│   ├── scoring/
+│   │   ├── evaluator.py               # [评分层] 基础机器评分（时长/完整度）
+│   │   ├── transition_scorer.py       # [评分层] 转场规则评分（片段碎/跳跃）
+│   │   ├── visual_scorer.py           # [评分层] 视觉LLM评分（多模态看画面）
+│   │   ├── frame_sampler.py           # [评分层] 从mp4抽帧（供visual_scorer用）
+│   │   └── image_grid.py              # [评分层] 把帧拼成9宫格（供visual_scorer用）
 │   │
-│   ├── evaluator.py                   # [评分层] 基础机器评分（时长/完整度）
-│   ├── transition_scorer.py           # [评分层] 转场规则评分（片段碎/跳跃）
-│   ├── visual_scorer.py               # [评分层] 视觉LLM评分（多模态看画面）
-│   ├── frame_sampler.py               # [评分层] 从mp4抽帧（供visual_scorer用）
-│   ├── image_grid.py                  # [评分层] 把帧拼成9宫格（供visual_scorer用）
+│   ├── multi_video/
+│   │   ├── selector.py                # [多视频组合层] 构建多视频输入结构
+│   │   ├── pool_builder.py            # [多视频组合层] 构建单视频候选片段池
+│   │   ├── combiner.py                # [多视频组合层] 主+副视频组合成候选
+│   │   └── scorer.py                  # [多视频组合层] 给多视频组合评分
 │   │
-│   ├── multi_video_selector.py        # [多视频组合层] 构建多视频输入结构
-│   ├── video_pool_builder.py          # [多视频组合层] 构建单视频候选片段池
-│   ├── video_combiner.py              # [多视频组合层] 主+副视频组合成候选
-│   ├── multi_video_scorer.py          # [多视频组合层] 给多视频组合评分
-│   │
-│   └── visual_debug.py                # [调试层] 视觉评分过程可视化报告
+│   └── debug/
+│       └── visual_debug.py            # [调试层] 视觉评分过程可视化报告
 │
 ├── scripts/                           # 入口脚本
 │   ├── run_5min.py                    # 5分钟版批处理（从sp_mini搬来，改import）
@@ -107,10 +110,10 @@ video.srt + video.mp4
 [Phase3 ×100次] phase3_match/runner.py
     批量AI匹配 → intervals_001.json ...
     ↓
-[评分] batch/evaluator.py + transition_scorer.py + visual_scorer.py（可选）
+[评分] batch/scoring/evaluator.py + batch/scoring/transition_scorer.py + batch/scoring/visual_scorer.py（可选）
     → 每个candidate得分
     ↓
-[选优/组合] batch/video_combiner.py
+[选优/组合] batch/multi_video/combiner.py
     单视频取最高分 / 多视频组合
     ↓
 [Phase4] phase4_cut/runner.py
@@ -141,11 +144,21 @@ video.srt + video.mp4
 | `scripts/run_5min.py` | 从 sp_mini/scripts/run_single_video_5min_batch.py 搬来，改import |
 | `scripts/run_short.py` | 从 sp_mini/scripts/run_single_video_short_batch.py 搬来，改import |
 
-### 修改 import 的文件
+### 移动并修改 import 的文件
 
 | 文件 | 改动 |
 |------|------|
-| `batch/phase_runner.py` | 不再 import main.py，改从 phase1_select/runner, phase2_rewrite/runner, shared/llm_caller |
+| `batch/runner/phase_runner.py` | 不再 import main.py，改从 phase1_select/runner, phase2_rewrite/runner, shared/llm_caller |
+| `batch/scoring/evaluator.py` | 从 `batch/evaluator.py` 移入 scoring，逻辑不变 |
+| `batch/scoring/transition_scorer.py` | 从 `batch/transition_scorer.py` 移入 scoring，逻辑不变 |
+| `batch/scoring/visual_scorer.py` | 从 `batch/visual_scorer.py` 移入 scoring，更新 frame/image_grid import |
+| `batch/scoring/frame_sampler.py` | 从 `batch/frame_sampler.py` 移入 scoring，逻辑不变 |
+| `batch/scoring/image_grid.py` | 从 `batch/image_grid.py` 移入 scoring，逻辑不变 |
+| `batch/multi_video/selector.py` | 从 `batch/multi_video_selector.py` 移入 multi_video，逻辑不变 |
+| `batch/multi_video/pool_builder.py` | 从 `batch/video_pool_builder.py` 移入 multi_video，逻辑不变 |
+| `batch/multi_video/combiner.py` | 从 `batch/video_combiner.py` 移入 multi_video，逻辑不变 |
+| `batch/multi_video/scorer.py` | 从 `batch/multi_video_scorer.py` 移入 multi_video，逻辑不变 |
+| `batch/debug/visual_debug.py` | 从 `batch/visual_debug.py` 移入 debug，更新 visual_scorer import |
 | `batch_generator.py` | 改从新的 phase 模块 import |
 | `skill.py` | 改从新的 phase 模块 import |
 
@@ -159,7 +172,7 @@ video.srt + video.mp4
 
 - `make_time/`：phase3_match/runner.py 内部调用它，待后续整理
 - `make_video/`：phase4_cut/runner.py 内部调用它，待后续整理
-- `batch/` 下所有文件：只改 import，逻辑不动
+- `batch/` 下所有文件：按 runner/scoring/multi_video/debug 分层移动，除 import 路径外逻辑不动
 
 ---
 
@@ -170,11 +183,29 @@ video.srt + video.mp4
 from main import run_phase1_batch, run_phase2_batch
 from make_time.step2 import get_keep_intervals
 
-# 改之后
+# 改之后（batch/runner/phase_runner.py）
 from phase1_select.runner import run_phase1
 from phase2_rewrite.runner import run_phase2
 from phase3_match.runner import get_keep_intervals
 from shared.llm_caller import call_llm_batch
+
+# 改之前（batch_generator.py）
+from batch.phase_runner import run_phase1_loop, run_phase2_loop, run_phase3_loop
+from batch.evaluator import evaluate_quality
+from batch.visual_scorer import enrich_top_interval_candidates_with_visual_score
+from batch.transition_scorer import enrich_candidates_with_transition_score
+from batch.video_pool_builder import keep_intervals_to_segments
+from batch.video_combiner import build_multi_video_candidates
+from batch.multi_video_scorer import score_multi_video_candidate, merge_multi_video_score
+
+# 改之后（batch_generator.py）
+from batch.runner.phase_runner import run_phase1_loop, run_phase2_loop, run_phase3_loop
+from batch.scoring.evaluator import evaluate_quality
+from batch.scoring.visual_scorer import enrich_top_interval_candidates_with_visual_score
+from batch.scoring.transition_scorer import enrich_candidates_with_transition_score
+from batch.multi_video.pool_builder import keep_intervals_to_segments
+from batch.multi_video.combiner import build_multi_video_candidates
+from batch.multi_video.scorer import score_multi_video_candidate, merge_multi_video_score
 
 # 改之前（scripts/run_5min.py，来自sp_mini）
 from main import run_phase1_batch, run_phase2_batch, call_llm_batch
@@ -203,7 +234,7 @@ from phase2_rewrite.prompts import PROMPT_5MIN, PROMPT_5MIN_EXPAND
 4. 创建 `phase3_match/runner.py`（包装make_time调用）
 5. 创建 `phase4_cut/runner.py`（包装make_video调用）
 6. 把 sp_mini 的两个批处理脚本搬进 `scripts/`，改import
-7. 更新 `batch/phase_runner.py`、`batch_generator.py`、`skill.py` 的 import
+7. 移动并更新 `batch/runner/phase_runner.py`、`batch_generator.py`、`skill.py` 的 import
 8. 删除 `main.py`
 9. 验证：跑 scripts/run_5min.py 和 batch_generator.py
 
@@ -280,7 +311,7 @@ MODE_SHORT = {
 
 | 当前文件 | 当前依赖 | 问题 | 目标 |
 |----------|----------|------|------|
-| `batch/phase_runner.py` | `from main import run_phase1_batch, run_phase2_batch` | 批量执行层依赖 CLI 入口 | 改依赖 `phase1_select.runner` / `phase2_rewrite.runner` |
+| `batch/runner/phase_runner.py` | `from main import run_phase1_batch, run_phase2_batch` | 批量执行层依赖 CLI 入口 | 改依赖 `phase1_select.runner` / `phase2_rewrite.runner` |
 | `batch_generator.py` | `make_video.step3.cut_video_main` | 输出路径被 `cut_video_main` 写死到 `data/hanbing` | 改依赖 `phase4_cut.runner`，显式传输出路径 |
 | `skill.py` | `from main import run_phase1, run_phase2, run_phase3, run_phase4, PHASE2_PROMPT` | 技能入口依赖 CLI 全局变量，还会临时修改 `main.PHASE2_PROMPT` | 改成给 `run_phase2` 传 prompt 参数 |
 | `sp_mini/scripts/run_single_video_5min_batch.py` | `from main import ...` | 5min 脚本倒挂 `sp_mini/main.py` | 搬进 `sp_video/scripts/run_5min.py` 后依赖 phase/shared |
@@ -289,7 +320,7 @@ MODE_SHORT = {
 `main.py` 不建议在第一步直接删除。更稳的顺序是：
 
 1. 新建 phase/shared 模块
-2. 修改 `batch/phase_runner.py`、`batch_generator.py`、`skill.py` 依赖新模块
+2. 修改 `batch/runner/phase_runner.py`、`batch_generator.py`、`skill.py` 依赖新模块
 3. 让 `main.py` 变成薄 CLI 包装，内部调用新模块
 4. 验证通过后，再决定保留兼容 CLI 还是删除
 
@@ -341,7 +372,7 @@ MODE_SHORT = {
 
 ### P2：抽出 Phase1 / Phase2 prompt 与 runner
 
-目标：解除 `batch/phase_runner.py`、`skill.py` 对 `main.py` 的依赖。
+目标：解除 `batch/runner/phase_runner.py`、`skill.py` 对 `main.py` 的依赖。
 
 新建：
 
@@ -380,7 +411,7 @@ def run_phase2_batch(video_id, phase1_content, output_path, prompt=PROMPT_VIDEO,
 
 验收：
 
-- `batch/phase_runner.py` 不再 import `main`
+- `batch/runner/phase_runner.py` 不再 import `main`
 - `skill.py` 不再 import `main` 或临时修改 `main.PHASE2_PROMPT`
 - `rg "from main|import main" sp_video` 不再命中生产路径
 
@@ -463,7 +494,7 @@ def cut_video(mp4_path, output_path, keep_intervals=None, segments=None):
 
 | 文件 | 改动 |
 |------|------|
-| `batch/phase_runner.py` | 改用 `phase1_select.runner`、`phase2_rewrite.runner`、`phase3_match.runner` |
+| `batch/runner/phase_runner.py` | 改用 `phase1_select.runner`、`phase2_rewrite.runner`、`phase3_match.runner` |
 | `batch_generator.py` | 改用 `phase4_cut.runner.cut_video` |
 | `skill.py` | 改用 phase runner；自定义 prompt 通过参数传递 |
 | `main.py` | 变成薄 CLI，内部调用 phase runner，或暂时作为兼容入口保留 |
