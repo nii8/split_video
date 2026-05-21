@@ -17,10 +17,10 @@ import sys
 
 from openai import OpenAI
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
-from batch.frame_sampler import sample_frames_for_interval, srt_time_to_seconds
-from batch.image_grid import make_grid_image
+from batch.scoring.frame_sampler import sample_frames_for_interval, srt_time_to_seconds
+from batch.scoring.image_grid import make_grid_image
 
 
 def image_path_to_data_url(image_path):

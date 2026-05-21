@@ -1,88 +1,27 @@
+import argparse
+import json
 import os
 import sys
-import json
-import argparse
-import time
-from openai import OpenAI
-import settings
-from make_time.step2 import get_keep_intervals
-from make_video.step3 import cut_video_main
 
-
-PHASE1_PROMPT = """核心指令： 请你担任一位短视频素材筛选员，严格遵守以下原则：
-1.零创作原则： 你输出的每一个句子片段，必须原封不动、一字不差地来自附件字幕文件。严禁任何形式的改写、概括、提炼或拼接。
-2.时间轴对应原则： 每个筛选出的句子片段都必须附带其原始的精确时间轴。
-
-你的任务：
-仔细阅读附件字幕文件的全部内容。
-从中筛选出符合以下特质的原始句子片段：
-1.最具冲击力、颠覆性的句子。
-2.最核心、点明主题的句子。
-3.最吸引人、能制造悬念的句子。
-4.最能引发情感共鸣或冲突的句子。
-
-输出时，仅需列出筛选出的句子及其对应时间轴，无需进行任何顺序调整或组合。
-输出格式要求：
-请按以下格式输出，严格保持每行结构清晰：
-
-(原始时间轴) --> (原始时间轴)
-(完全摘自附件的原始文案)
-
-输出格式示例如下：
-
-00:00:19,833 --> 00:00:20,633
-知己知彼
-
-00:00:27,400 --> 00:00:30,300
-不是99% 是99.99%"""
-
-
-PHASE2_PROMPT = """核心指令： 请你担任一位短视频脚本架构师。
-严格遵守以下原则：
-1.零创作原则： 你输出的每一个句子片段，必须原封不动、一字不差地来自附件字幕文件。严禁任何形式的改写、概括、提炼或拼接。
-2.时间轴对应原则： 每个筛选出的句子片段都必须附带其原始的精确时间轴。
-
-你的任务：
-根据提供的筛选句子片段库为唯一素材来源（即一系列带有时间轴的原始句子片段）。
-重组与排序： 将这些原始句子片段，按照抖音爆款短视频的典型叙事逻辑进行重新排列和组合，形成一个紧凑、有节奏、有情绪起伏的脚本。
-
-叙事逻辑：
-a. 黄金3秒钩子： 使用素材库中最具颠覆性、悬念或共鸣的句子开头。
-b. 中间情绪推进： 围绕核心主题，从素材库中选择体现冲突、转折、感悟的句子，组合成有推进感的故事线。
-c. 结尾升华或互动： 用素材库中一句有力量、引人深思或引发共鸣的句子收尾。
-
-严格遵守红线： 脚本中的每一句话都必须源自提供的素材库，且时间轴与文案严格对应，严禁任何创作或修改。
-
-输出格式要求：
-请按以下格式输出最终脚本：
-
-(原始时间轴) --> (原始时间轴)
-(完全摘自附件的原始文案)
-
-输出格式示例如下：
-
-00:00:19,833 --> 00:00:20,633
-知己知彼
-
-00:00:27,400 --> 00:00:30,300
-不是99% 是99.99%
-
-筛选句子片段库：
-"""
+from phase1_select.prompts import PROMPT_VIDEO as PHASE1_PROMPT
+from phase1_select.runner import run_phase1, run_phase1_batch
+from phase2_rewrite.prompts import PROMPT_VIDEO as PHASE2_PROMPT
+from phase2_rewrite.runner import run_phase2, run_phase2_batch
+from phase3_match.runner import run_phase3
+from phase4_cut.runner import run_phase4
 
 
 def exit_json(data):
-    """输出最终 JSON 并退出"""
     print(json.dumps(data, ensure_ascii=False))
     sys.exit(0 if data.get("status") == "success" else 1)
 
 
 def ask_input(label):
-    val = input(f"{label}: ").strip()
-    while not val:
+    value = input(f"{label}: ").strip()
+    while not value:
         print("不能为空，请重新输入")
-        val = input(f"{label}: ").strip()
-    return val
+        value = input(f"{label}: ").strip()
+    return value
 
 
 def edit_multiline(default):
@@ -91,6 +30,7 @@ def edit_multiline(default):
     choice = input("> ").strip().lower()
     if choice != "e":
         return default
+
     print("粘贴新提示词，完成后新行输入 END 回车：")
     lines = []
     while True:
@@ -101,190 +41,8 @@ def edit_multiline(default):
     return "\n".join(lines)
 
 
-def call_llm_stream(prompt):
-    from openai import OpenAI
-
-    client = OpenAI(
-        api_key=settings.BAILIAN_API_KEY,
-        base_url="https://coding.dashscope.aliyuncs.com/v1",
-        timeout=900,
-    )
-    start = time.time()
-    response = client.chat.completions.create(
-        model="qwen3.5-plus",
-        messages=[
-            {
-                "role": "system",
-                "content": "You are a senior short video copywriter well-versed in the dissemination patterns of the TikTok platform.",
-            },
-            {"role": "user", "content": prompt},
-        ],
-        stream=True,
-    )
-    full = ""
-    for chunk in response:
-        if chunk.choices[0].delta.content:
-            word = chunk.choices[0].delta.content
-            print(word, end="", flush=True)
-            full += word
-    print()
-    print(f"[LLM] stream call duration: {round(time.time() - start, 2)} s")
-    return full
-
-
-def call_llm_batch(prompt):
-    from openai import OpenAI
-
-    client = OpenAI(
-        api_key=settings.BAILIAN_API_KEY,
-        base_url="https://coding.dashscope.aliyuncs.com/v1",
-        timeout=900,
-    )
-    start = time.time()
-    response = client.chat.completions.create(
-        model="qwen3.5-plus",
-        messages=[
-            {
-                "role": "system",
-                "content": "You are a senior short video copywriter well-versed in the dissemination patterns of the TikTok platform.",
-            },
-            {"role": "user", "content": prompt},
-        ],
-        stream=False,
-    )
-    print(f"[LLM] batch call duration: {round(time.time() - start, 2)} s")
-    return response.choices[0].message.content
-
-
 def confirm_continue(msg):
     input(f"\n{msg} [按回车继续]")
-
-
-def run_phase1(srt_path, output_dir=None, interactive=True):
-    print("\n" + "=" * 60)
-    print("[第一阶段] LLM 筛选有价值字幕")
-    print("=" * 60)
-    phase_start = time.time()
-
-    # 若 output_dir 下已有 step1.txt，直接复用
-    step1_path = os.path.join(output_dir, "step1.txt") if output_dir else None
-    if step1_path and os.path.exists(step1_path):
-        print(f"[跳过] 已有缓存: {step1_path}")
-        with open(step1_path, "r", encoding="utf-8") as f:
-            return f.read()
-
-    prompt = PHASE1_PROMPT
-    if interactive:
-        print("提示词（默认）：\n")
-        prompt = edit_multiline(PHASE1_PROMPT)
-
-    print(f"[Stage 1] 读取字幕: {srt_path}")
-    srt_content = open(srt_path, "r", encoding="utf-8").read()
-    full_prompt = prompt + "\n\n" + srt_content
-    print("[Stage 1] 调用 LLM ...")
-    print("\n--- LLM 输出 ---\n")
-    result = call_llm_stream(full_prompt)
-
-    if step1_path:
-        with open(step1_path, "w", encoding="utf-8") as f:
-            f.write(result)
-        print(f"[Stage 1] 已保存: {step1_path}")
-    print(f"[Stage 1] duration: {round(time.time() - phase_start, 2)} s")
-
-    return result
-
-
-def run_phase2(phase1_result, output_dir=None, interactive=True):
-    print("\n" + "=" * 60)
-    print("[第二阶段] LLM 重组脚本")
-    print("=" * 60)
-    phase_start = time.time()
-
-    step2_path = os.path.join(output_dir, "step2.txt") if output_dir else None
-    if step2_path and os.path.exists(step2_path):
-        print(f"[跳过] 已有缓存: {step2_path}")
-        with open(step2_path, "r", encoding="utf-8") as f:
-            return f.read()
-
-    prompt = PHASE2_PROMPT
-    if interactive:
-        print("提示词（默认）：\n")
-        prompt = edit_multiline(PHASE2_PROMPT)
-
-    full_prompt = prompt + "\n" + phase1_result
-    print("[Stage 2] 调用 LLM ...")
-    print("\n--- LLM 输出 ---\n")
-    result = call_llm_stream(full_prompt)
-
-    if step2_path:
-        with open(step2_path, "w", encoding="utf-8") as f:
-            f.write(result)
-        print(f"[Stage 2] 已保存: {step2_path}")
-    print(f"[Stage 2] duration: {round(time.time() - phase_start, 2)} s")
-
-    return result
-
-
-def run_phase3(srt_path, script, output_dir=None):
-    print("\n" + "=" * 60)
-    print("[第三阶段] 生成时间序列（AI 字幕匹配）")
-    print("=" * 60)
-    phase_start = time.time()
-
-    intervals_path = os.path.join(output_dir, "intervals.json") if output_dir else None
-    if intervals_path and os.path.exists(intervals_path):
-        print(f"[跳过] 已有缓存: {intervals_path}")
-        with open(intervals_path, "r", encoding="utf-8") as f:
-            return json.load(f)
-
-    print("[Stage 3] 开始 AI 字幕匹配 ...")
-    result = get_keep_intervals(srt_path, script)
-    keep_intervals = result.get("keep_intervals", [])
-    valid = [item for item in keep_intervals if item[0][0]]
-    skipped = len(keep_intervals) - len(valid)
-    print(f"[Stage 3] 共匹配 {len(valid)} 个片段（{skipped} 个未匹配已跳过）：")
-    for i, item in enumerate(valid):
-        start, end = item[0]
-        text = str(item[1])
-        print(f"  {i + 1}. [{start} --> {end}] {text[:40]}")
-
-    if intervals_path:
-        with open(intervals_path, "w", encoding="utf-8") as f:
-            json.dump(valid, f, ensure_ascii=False, indent=2)
-        print(f"[Stage 3] 已保存: {intervals_path}")
-    print(f"[Stage 3] duration: {round(time.time() - phase_start, 2)} s")
-
-    return valid
-
-
-def run_phase4(video_path, keep_intervals, video_id):
-    print("\n" + "=" * 60)
-    print("[第四阶段] 生成视频")
-    print("=" * 60)
-    phase_start = time.time()
-    print(f"[Stage 4] 开始剪辑，共 {len(keep_intervals)} 个片段 ...")
-    output_path = cut_video_main(keep_intervals, video_path, video_id, "cli")
-    print(f"[Stage 4] 视频已生成: {output_path}")
-    print(f"[Stage 4] duration: {round(time.time() - phase_start, 2)} s")
-    return output_path
-
-
-def run_phase1_batch(video_id, srt_path, output_path):
-    with open(srt_path, "r", encoding="utf-8") as f:
-        srt_content = f.read()
-    full_prompt = PHASE1_PROMPT + "\n\n" + srt_content
-    result = call_llm_batch(full_prompt)
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(result)
-    return result
-
-
-def run_phase2_batch(video_id, phase1_content, output_path):
-    full_prompt = PHASE2_PROMPT + "\n" + phase1_content
-    result = call_llm_batch(full_prompt)
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(result)
-    return result
 
 
 def parse_args():
@@ -304,12 +62,11 @@ def parse_args():
 
 def main():
     args = parse_args()
-    interactive = args.input_video is None  # 没传参数 → 交互模式
+    interactive = args.input_video is None
 
     print("智能视频剪辑 CLI")
     print("=" * 60)
 
-    # ── 获取输入 ──────────────────────────────────────────────────
     if interactive:
         video_path = ask_input("请输入视频路径 (.mp4)")
         srt_path = ask_input("请输入字幕路径 (.srt)")
@@ -317,15 +74,8 @@ def main():
         video_path = args.input_video
         srt_path = args.input_srt
         if not video_path or not srt_path:
-            exit_json(
-                {
-                    "status": "error",
-                    "stage": 0,
-                    "message": "--input_video 和 --input_srt 均为必填项",
-                }
-            )
+            exit_json({"status": "error", "stage": 0, "message": "--input_video 和 --input_srt 均为必填项"})
 
-    # ── 校验文件 ──────────────────────────────────────────────────
     if not os.path.exists(video_path):
         msg = f"视频文件不存在: {video_path}"
         if interactive:
@@ -340,21 +90,18 @@ def main():
             sys.exit(1)
         exit_json({"status": "error", "stage": 0, "message": msg})
 
-    # ── 准备输出目录 ───────────────────────────────────────────────
     video_id = os.path.basename(video_path).replace(".mp4", "")
-    output_dir = (
-        args.output_dir
-        if args.output_dir
-        else os.path.dirname(os.path.abspath(video_path))
-    )
+    output_dir = args.output_dir if args.output_dir else os.path.dirname(os.path.abspath(video_path))
     os.makedirs(output_dir, exist_ok=True)
     print(f"[Init] video_id={video_id}  output_dir={output_dir}  stage={args.stage}")
 
-    stage = args.stage
+    phase1_prompt = PHASE1_PROMPT
+    if interactive:
+        print("Phase1 提示词（默认）：\n")
+        phase1_prompt = edit_multiline(PHASE1_PROMPT)
 
-    # ── Phase 1 ───────────────────────────────────────────────────
     try:
-        result1 = run_phase1(srt_path, output_dir, interactive)
+        result1 = run_phase1(srt_path, prompt=phase1_prompt, output_dir=output_dir, stream=True)
     except Exception as e:
         msg = f"Phase 1 失败: {e}"
         if interactive:
@@ -362,21 +109,22 @@ def main():
             sys.exit(1)
         exit_json({"status": "error", "stage": 1, "message": msg})
 
-    if stage == 1:
+    if args.stage == 1:
         if interactive:
             print("\n[完成] 已执行到 Stage 1")
-        else:
-            exit_json(
-                {"status": "success", "output": os.path.join(output_dir, "step1.txt")}
-            )
-        return
+            return
+        exit_json({"status": "success", "output": os.path.join(output_dir, "step1.txt")})
 
     if interactive:
         confirm_continue("第一阶段完成，准备进入第二阶段")
 
-    # ── Phase 2 ───────────────────────────────────────────────────
+    phase2_prompt = PHASE2_PROMPT
+    if interactive:
+        print("Phase2 提示词（默认）：\n")
+        phase2_prompt = edit_multiline(PHASE2_PROMPT)
+
     try:
-        result2 = run_phase2(result1, output_dir, interactive)
+        result2 = run_phase2(result1, prompt=phase2_prompt, output_dir=output_dir, stream=True)
     except Exception as e:
         msg = f"Phase 2 失败: {e}"
         if interactive:
@@ -384,21 +132,17 @@ def main():
             sys.exit(1)
         exit_json({"status": "error", "stage": 2, "message": msg})
 
-    if stage == 2:
+    if args.stage == 2:
         if interactive:
             print("\n[完成] 已执行到 Stage 2")
-        else:
-            exit_json(
-                {"status": "success", "output": os.path.join(output_dir, "step2.txt")}
-            )
-        return
+            return
+        exit_json({"status": "success", "output": os.path.join(output_dir, "step2.txt")})
 
     if interactive:
         confirm_continue("第二阶段完成，准备生成时间序列（第三阶段）")
 
-    # ── Phase 3 ───────────────────────────────────────────────────
     try:
-        keep_intervals = run_phase3(srt_path, result2, output_dir)
+        keep_intervals = run_phase3(srt_path, result2, output_dir=output_dir)
     except Exception as e:
         msg = f"Phase 3 失败: {e}"
         if interactive:
@@ -413,22 +157,15 @@ def main():
             sys.exit(1)
         exit_json({"status": "error", "stage": 3, "message": msg})
 
-    if stage == 3:
+    if args.stage == 3:
         if interactive:
             print("\n[完成] 已执行到 Stage 3")
-        else:
-            exit_json(
-                {
-                    "status": "success",
-                    "output": os.path.join(output_dir, "intervals.json"),
-                }
-            )
-        return
+            return
+        exit_json({"status": "success", "output": os.path.join(output_dir, "intervals.json")})
 
     if interactive:
         confirm_continue("确认以上片段，准备生成视频（第四阶段）")
 
-    # ── Phase 4 ───────────────────────────────────────────────────
     try:
         output_path = run_phase4(video_path, keep_intervals, video_id)
     except Exception as e:
@@ -442,26 +179,6 @@ def main():
         print(f"\n[完成] 输出视频: {output_path}")
     else:
         exit_json({"status": "success", "output": output_path})
-
-
-# ── 批量模式函数（无交互） ──────────────────────────────────────────
-def run_phase1_batch(video_id, srt_path, output_path):
-    """批量模式 Phase1：无交互，直接使用默认 prompt"""
-    srt_content = open(srt_path, "r", encoding="utf-8").read()
-    full_prompt = PHASE1_PROMPT + "\n\n" + srt_content
-    result = call_llm_batch(full_prompt)
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(result)
-    return result
-
-
-def run_phase2_batch(video_id, phase1_content, output_path):
-    """批量模式 Phase2：无交互，直接使用默认 prompt"""
-    full_prompt = PHASE2_PROMPT + "\n" + phase1_content
-    result = call_llm_batch(full_prompt)
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(result)
-    return result
 
 
 if __name__ == "__main__":

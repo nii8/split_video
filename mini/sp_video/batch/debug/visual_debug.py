@@ -10,9 +10,9 @@ import json
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
-from batch.visual_scorer import score_interval_visual
+from batch.scoring.visual_scorer import score_interval_visual
 
 
 def main():

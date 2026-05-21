@@ -2,8 +2,10 @@ import os
 import random
 import time
 import json
-from main import run_phase1_batch, run_phase2_batch
-from make_time.step2 import get_keep_intervals
+
+from phase1_select.runner import run_phase1_batch
+from phase2_rewrite.runner import run_phase2_batch
+from phase3_match.runner import get_keep_intervals
 
 
 def run_phase1_loop(video_id, srt_path, output_dir, count, logger):

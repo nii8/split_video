@@ -20,8 +20,8 @@ import time
 import settings
 from openai import OpenAI
 
-from batch.frame_sampler import sample_frames_for_intervals
-from batch.image_grid import make_grid_image
+from batch.scoring.frame_sampler import sample_frames_for_intervals
+from batch.scoring.image_grid import make_grid_image
 
 
 def score_candidate_visual(video_id, candidate_id, video_path, intervals, work_dir, use_llm=False):

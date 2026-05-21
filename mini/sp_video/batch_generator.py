@@ -4,18 +4,18 @@ import json
 import time
 import math
 import settings
-from batch.logger import BatchLogger
-from batch.phase_runner import run_phase1_loop, run_phase2_loop, run_phase3_loop
-from batch.evaluator import evaluate_quality
-from batch.visual_scorer import enrich_top_interval_candidates_with_visual_score
-from batch.transition_scorer import enrich_candidates_with_transition_score
-from batch.video_pool_builder import keep_intervals_to_segments
-from batch.video_combiner import build_multi_video_candidates
-from batch.multi_video_scorer import (
+from shared.logger import BatchLogger
+from batch.runner.phase_runner import run_phase1_loop, run_phase2_loop, run_phase3_loop
+from batch.scoring.evaluator import evaluate_quality
+from batch.scoring.visual_scorer import enrich_top_interval_candidates_with_visual_score
+from batch.scoring.transition_scorer import enrich_candidates_with_transition_score
+from batch.multi_video.pool_builder import keep_intervals_to_segments
+from batch.multi_video.combiner import build_multi_video_candidates
+from batch.multi_video.scorer import (
     score_multi_video_candidate,
     merge_multi_video_score,
 )
-from make_video.step3 import cut_video_main
+from phase4_cut.runner import cut_video_main
 from make_video.multi_video_builder import generate_multi_video
 
 

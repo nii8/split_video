@@ -7,9 +7,9 @@ from datetime import datetime
 class BatchLogger:
     def __init__(self, log_file):
         self.log_file = log_file
-        os.makedirs(os.path.dirname(log_file), exist_ok=True) if os.path.dirname(
-            log_file
-        ) else None
+        log_dir = os.path.dirname(log_file)
+        if log_dir:
+            os.makedirs(log_dir, exist_ok=True)
 
     def log_phase(self, video_id, phase, iteration, duration_sec, status, **kwargs):
         entry = {
@@ -38,3 +38,4 @@ class BatchLogger:
         with open(self.log_file, "a", encoding="utf-8") as f:
             f.write(line + "\n")
         return entry
+

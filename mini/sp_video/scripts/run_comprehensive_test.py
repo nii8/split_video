@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import settings
 from batch_generator import scan_videos, process_video, process_multi_video
-from batch.logger import BatchLogger
+from shared.logger import BatchLogger
 
 
 class Timer:

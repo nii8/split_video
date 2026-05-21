@@ -162,11 +162,11 @@ video.srt + video.mp4
 | `batch_generator.py` | 改从新的 phase 模块 import |
 | `skill.py` | 改从新的 phase 模块 import |
 
-### 删除文件
+### 降级为兼容入口
 
 | 文件 | 原因 |
 |------|------|
-| `main.py` | 职责全部分散到各 phase 目录和 shared/ |
+| `main.py` | 第一轮不直接删除，先降级为薄 CLI wrapper；业务职责全部分散到各 phase 目录和 shared/ |
 
 ### 暂时保留不动
 
@@ -235,7 +235,7 @@ from phase2_rewrite.prompts import PROMPT_5MIN, PROMPT_5MIN_EXPAND
 5. 创建 `phase4_cut/runner.py`（包装make_video调用）
 6. 把 sp_mini 的两个批处理脚本搬进 `scripts/`，改import
 7. 移动并更新 `batch/runner/phase_runner.py`、`batch_generator.py`、`skill.py` 的 import
-8. 删除 `main.py`
+8. 将 `main.py` 降级为薄 CLI wrapper，不再作为业务函数仓库
 9. 验证：跑 scripts/run_5min.py 和 batch_generator.py
 
 ---
@@ -245,6 +245,87 @@ from phase2_rewrite.prompts import PROMPT_5MIN, PROMPT_5MIN_EXPAND
 1. **settings.py 各自独立**：sp_mini 和 sp_video 的配置不同，只保留 sp_video 的 settings.py
 2. **call_llm_batch 函数差异**：sp_mini 的版本有 heartbeat_callback 参数，sp_video 的没有 → shared/llm_caller.py 采用 sp_mini 版本（含 heartbeat_callback，向下兼容）
 3. **运行路径**：在 sp_video/ 目录下运行，`PYTHONPATH=.` 或直接 python -m 方式执行
+
+---
+
+## 新人阅读地图
+
+目标是让新同事用 PyCharm 打开 `sp_video/` 后，能按业务问题直接找到文件，不需要先理解历史包袱。
+
+| 想做什么 | 去哪里看 |
+|----------|----------|
+| 改 Phase1 筛字幕 prompt | `phase1_select/prompts.py` |
+| 看 Phase1 怎么调用 LLM | `phase1_select/runner.py` |
+| 改 Phase2 重组脚本 prompt | `phase2_rewrite/prompts.py` |
+| 看 Phase2 怎么生成脚本 | `phase2_rewrite/runner.py` |
+| 看脚本如何匹配回 SRT 时间轴 | `phase3_match/runner.py` |
+| 看视频如何按时间段裁剪 | `phase4_cut/runner.py` |
+| 看 5 分钟版单视频入口 | `scripts/run_5min.py` |
+| 看短精华版单视频入口 | `scripts/run_short.py` |
+| 看批量候选怎么生成 | `batch/runner/phase_runner.py` |
+| 看候选怎么打基础分/转场分/视觉分 | `batch/scoring/` |
+| 看多视频怎么构建片段池和组合 | `batch/multi_video/` |
+| 看外部系统 JSON 调用入口 | `skill.py` |
+| 看批量主入口 | `batch_generator.py` |
+| 看 LLM 调用、日志、通用工具 | `shared/` |
+
+最核心的阅读顺序：
+
+```text
+phase1_select/runner.py
+  ↓
+phase2_rewrite/runner.py
+  ↓
+phase3_match/runner.py
+  ↓
+phase4_cut/runner.py
+```
+
+批量模式的阅读顺序：
+
+```text
+batch_generator.py
+  ↓
+batch/runner/phase_runner.py
+  ↓
+batch/scoring/
+  ↓
+batch/multi_video/（仅多视频模式）
+```
+
+---
+
+## 代码朴素原则
+
+本次重构优先追求清晰、可读、可维护，不追求复杂抽象。
+
+1. **文件名直接对应业务职责**
+   - `phase1_select` 只做字幕筛选
+   - `phase2_rewrite` 只做脚本重组
+   - `phase3_match` 只做时间轴匹配
+   - `phase4_cut` 只做视频裁剪
+
+2. **函数名直接说明动作**
+   - 推荐：`run_phase1`、`run_phase2`、`get_keep_intervals`、`cut_video`、`evaluate_quality`
+   - 避免：`execute_pipeline_node`、`resolve_strategy_context`、`compose_candidate_graph`
+
+3. **优先使用普通函数**
+   - 除 `BatchLogger`、`ProgressTracker` 这类确实有状态的对象外，不新增复杂 class
+   - 不使用继承体系来表达简单流程
+
+4. **避免高级语法和隐式魔法**
+   - 不使用元类、复杂装饰器、动态 import、过度 callback
+   - 不为了“通用”引入难读的抽象层
+
+5. **shared 不做垃圾桶**
+   - 多个目录共同使用的工具才放 `shared/`
+   - 只给 batch 用的函数放 `batch/`
+   - 只给 phase3 用的函数放 `phase3_match/`
+
+6. **入口文件只调度，不藏业务**
+   - `main.py` 只解析 CLI 参数并调用 phase
+   - `skill.py` 只处理 JSON 输入输出、状态读写、调用 phase
+   - `batch_generator.py` 只组织批量流程，不放底层算法
 
 ---
 

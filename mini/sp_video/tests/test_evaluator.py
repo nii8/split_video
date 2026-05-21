@@ -1,5 +1,5 @@
 import pytest
-from batch.evaluator import evaluate_quality
+from batch.scoring.evaluator import evaluate_quality
 
 
 def test_evaluate_quality_basic():

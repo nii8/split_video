@@ -62,6 +62,7 @@ import sys
 import json
 import argparse
 import subprocess
+import tempfile
 import time
 from datetime import datetime
 
@@ -69,10 +70,14 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import settings
-from main import run_phase1, run_phase2, run_phase3, run_phase4, PHASE2_PROMPT
+from phase1_select.runner import run_phase1
+from phase2_rewrite.prompts import PROMPT_VIDEO as PHASE2_PROMPT
+from phase2_rewrite.runner import run_phase2
+from phase3_match.runner import run_phase3
+from phase4_cut.runner import run_phase4
 
 # ── 日志文件配置 ───────────────────────────────────────────────────────────────
-LOG_FILE = '/tmp/skill.log'
+LOG_FILE = os.path.join(tempfile.gettempdir(), 'skill.log')
 
 def log_to_file(msg):
     """同时输出到 stderr 和日志文件"""
@@ -397,7 +402,7 @@ def cmd_start(args):
     log_to_file(f'[START] Phase1 video_id={video_id}')
     phase1_start = time.time()
     try:
-        result1 = run_phase1(local_srt, output_dir=state_dir, interactive=False)
+        result1 = run_phase1(local_srt, output_dir=state_dir, interactive=False, stream=True)
         elapsed = time.time() - phase1_start
         log(f'[END] Phase1 完成，耗时 {elapsed:.1f}秒')
         log_to_file(f'[END] Phase1 完成，耗时 {elapsed:.1f}秒')
@@ -492,13 +497,8 @@ def cmd_phase2(args):
     log_to_file(f'[START] Phase2 video_id={video_id}')
     phase2_start = time.time()
     try:
-        import main as main_module
-        if custom_prompt:
-            original_prompt = main_module.PHASE2_PROMPT
-            main_module.PHASE2_PROMPT = custom_prompt
-        result2 = run_phase2(result1, output_dir=state_dir, interactive=False)
-        if custom_prompt:
-            main_module.PHASE2_PROMPT = original_prompt
+        prompt = custom_prompt if custom_prompt else PHASE2_PROMPT
+        result2 = run_phase2(result1, prompt=prompt, output_dir=state_dir, interactive=False, stream=True)
         elapsed = time.time() - phase2_start
         log(f'[END] Phase2 完成，耗时 {elapsed:.1f}秒')
         log_to_file(f'[END] Phase2 完成，耗时 {elapsed:.1f}秒')

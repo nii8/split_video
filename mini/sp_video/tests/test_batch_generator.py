@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import settings
 from batch_generator import scan_videos, process_video, process_multi_video
-from batch.logger import BatchLogger
+from shared.logger import BatchLogger
 from make_video.multi_video_builder import generate_multi_video
 
 
@@ -119,7 +119,7 @@ class TestMultiVideoMode:
 
     def test_video_sources_format(self):
         """测试视频源格式"""
-        from batch.multi_video_selector import build_video_sources
+        from batch.multi_video.selector import build_video_sources
 
         videos = scan_videos(settings.DATA_DIR)
         # 转换为 build_video_sources 需要的格式
