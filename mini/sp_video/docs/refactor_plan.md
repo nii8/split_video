@@ -214,3 +214,344 @@ from phase2_rewrite.prompts import PROMPT_5MIN, PROMPT_5MIN_EXPAND
 1. **settings.py 各自独立**：sp_mini 和 sp_video 的配置不同，只保留 sp_video 的 settings.py
 2. **call_llm_batch 函数差异**：sp_mini 的版本有 heartbeat_callback 参数，sp_video 的没有 → shared/llm_caller.py 采用 sp_mini 版本（含 heartbeat_callback，向下兼容）
 3. **运行路径**：在 sp_video/ 目录下运行，`PYTHONPATH=.` 或直接 python -m 方式执行
+
+---
+
+## 融合重构主线
+
+`architecture_refactor.md` 是 sp_mini 的单工程整理方案；本文件才是主目标：**把 sp_mini 的 5min / short 单视频压缩能力融合进 sp_video，并保留 sp_video 已有的批量生成、评分、选优、多视频能力。**
+
+重构后的维护原则：
+
+1. `sp_video` 是唯一主工程，后续新增能力都进 `sp_video/`
+2. `sp_mini` 只作为迁移来源和历史对照，不再继续演进
+3. 四个 phase 是公共处理骨架，所有模式只通过 prompt、循环次数、时长目标、输出目录策略体现差异
+4. `batch/` 仍然表示 sp_video 独有的“候选池 + 评分 + 选优”能力，不并入 phase
+5. 第一轮重构优先降低风险：先新增包装层和兼容入口，再切换调用方，最后再考虑删除旧入口
+
+---
+
+## 三种运行模式
+
+融合后 `sp_video` 至少要同时支持三种模式：
+
+| 模式 | 来源 | 目标 | Phase1/2 prompt | Phase3/4 | 输出特征 |
+|------|------|------|-----------------|----------|----------|
+| `video` | 原 sp_video | 批量生成短视频候选并评分选优 | `PROMPT_VIDEO` | 共用 | 多候选、评分、可多视频组合 |
+| `5min` | 原 sp_mini | 单视频顺序压缩到约 4-6 分钟 | `PROMPT_5MIN` + `PROMPT_5MIN_EXPAND` | 共用 | 单结果、带 retry、进度 heartbeat |
+| `short` | 原 sp_mini | 单视频压缩成高密度短精华 | `PROMPT_SHORT` | 共用 | 单结果、无 retry、目标约 60-150 秒 |
+
+这三种模式不要复制三套 phase 逻辑。推荐做法是引入轻量的模式配置：
+
+```python
+MODE_VIDEO = {
+    "name": "video",
+    "phase1_prompt": PROMPT_VIDEO,
+    "phase2_prompt": PROMPT_VIDEO,
+}
+
+MODE_5MIN = {
+    "name": "5min",
+    "phase1_prompt": PROMPT_5MIN,
+    "phase2_prompt": PROMPT_5MIN,
+    "phase2_retry_prompt": PROMPT_5MIN_EXPAND,
+    "target_sec": 300,
+    "target_min_sec": 240,
+    "target_max_sec": 360,
+}
+
+MODE_SHORT = {
+    "name": "short",
+    "phase1_prompt": PROMPT_SHORT,
+    "phase2_prompt": PROMPT_SHORT,
+    "target_sec": 90,
+    "target_min_sec": 60,
+    "target_max_sec": 150,
+}
+```
+
+第一轮可以不单独建 `modes.py`，但代码结构要朝这个方向收敛，避免把 `5min` / `short` 的差异散落到多个脚本里。
+
+---
+
+## 现状依赖梳理
+
+当前关键倒置依赖：
+
+| 当前文件 | 当前依赖 | 问题 | 目标 |
+|----------|----------|------|------|
+| `batch/phase_runner.py` | `from main import run_phase1_batch, run_phase2_batch` | 批量执行层依赖 CLI 入口 | 改依赖 `phase1_select.runner` / `phase2_rewrite.runner` |
+| `batch_generator.py` | `make_video.step3.cut_video_main` | 输出路径被 `cut_video_main` 写死到 `data/hanbing` | 改依赖 `phase4_cut.runner`，显式传输出路径 |
+| `skill.py` | `from main import run_phase1, run_phase2, run_phase3, run_phase4, PHASE2_PROMPT` | 技能入口依赖 CLI 全局变量，还会临时修改 `main.PHASE2_PROMPT` | 改成给 `run_phase2` 传 prompt 参数 |
+| `sp_mini/scripts/run_single_video_5min_batch.py` | `from main import ...` | 5min 脚本倒挂 `sp_mini/main.py` | 搬进 `sp_video/scripts/run_5min.py` 后依赖 phase/shared |
+| `sp_mini/scripts/run_single_video_short_batch.py` | 自带 prompt 和 LLM 调用 | 与 main.py 重复 | 搬进 `sp_video/scripts/run_short.py` 后依赖 phase/shared |
+
+`main.py` 不建议在第一步直接删除。更稳的顺序是：
+
+1. 新建 phase/shared 模块
+2. 修改 `batch/phase_runner.py`、`batch_generator.py`、`skill.py` 依赖新模块
+3. 让 `main.py` 变成薄 CLI 包装，内部调用新模块
+4. 验证通过后，再决定保留兼容 CLI 还是删除
+
+---
+
+## 分阶段实施计划
+
+### P0：冻结行为与建立验收基线
+
+目标：先知道“现在能跑什么”，避免重构后无从判断是否退化。
+
+任务：
+
+1. 记录当前 `sp_video` 的入口：`batch_generator.py`、`skill.py`、`main.py`
+2. 记录当前 `sp_mini` 的入口：`run_single_video_5min_batch.py`、`run_single_video_short_batch.py`
+3. 给无 LLM 的纯函数测试先跑一遍：`test_time_utils.py`、`test_filter_complex.py`、`test_interval.py`、`test_mode2_parse.py`
+4. 明确含 LLM / ffmpeg / OSS 的测试只做手动验收，不作为第一轮自动测试阻塞项
+
+验收：
+
+- 能列出当前所有入口和对应命令
+- 能确认现有纯函数测试基线
+- 文档记录已知无法自动验收的外部依赖
+
+### P1：抽出 shared，但不改变业务调用
+
+目标：先把公共能力集中起来，但保持现有入口行为不变。
+
+新建：
+
+| 文件 | 内容 |
+|------|------|
+| `shared/__init__.py` | 空文件 |
+| `shared/llm_caller.py` | 采用 sp_mini 的 `call_llm_batch(prompt, heartbeat_callback=None)`，同时提供 `call_llm_stream(prompt)` |
+| `shared/logger.py` | 从 `batch/logger.py` 复制或迁移 `BatchLogger` |
+| `shared/output.py` | 从 `sp_mini/batch/output.py` 迁入，供 5min / short 脚本使用 |
+| `shared/utils.py` | 放 `TeeStream`、`make_run_id`、`find_video_pairs`、`keep_intervals_to_segments` 等重复工具 |
+
+注意：
+
+- `shared/llm_caller.py` 第一轮继续用 `settings.BAILIAN_API_KEY` 和 `qwen3.5-plus`
+- `heartbeat_callback` 参数必须保留，给 5min 进度输出使用
+- `batch/logger.py` 可暂时保留，后续再改成兼容 re-export
+
+验收：
+
+- `python -m compileall shared` 通过
+- 原入口还没有切换时，行为不变
+
+### P2：抽出 Phase1 / Phase2 prompt 与 runner
+
+目标：解除 `batch/phase_runner.py`、`skill.py` 对 `main.py` 的依赖。
+
+新建：
+
+| 文件 | 内容 |
+|------|------|
+| `phase1_select/prompts.py` | `PROMPT_VIDEO`、`PROMPT_5MIN`、`PROMPT_SHORT` |
+| `phase1_select/runner.py` | `run_phase1(...)`、`run_phase1_batch(...)` |
+| `phase2_rewrite/prompts.py` | `PROMPT_VIDEO`、`PROMPT_5MIN`、`PROMPT_5MIN_EXPAND`、`PROMPT_SHORT` |
+| `phase2_rewrite/runner.py` | `run_phase2(...)`、`run_phase2_batch(...)` |
+
+建议函数签名：
+
+```python
+def run_phase1(srt_path, prompt, output_dir=None, output_path=None, interactive=False, stream=False, heartbeat_callback=None):
+    ...
+
+def run_phase2(phase1_text, prompt, output_dir=None, output_path=None, interactive=False, stream=False, heartbeat_callback=None):
+    ...
+```
+
+兼容包装：
+
+```python
+def run_phase1_batch(video_id, srt_path, output_path, prompt=PROMPT_VIDEO, heartbeat_callback=None):
+    ...
+
+def run_phase2_batch(video_id, phase1_content, output_path, prompt=PROMPT_VIDEO, heartbeat_callback=None):
+    ...
+```
+
+注意：
+
+- `video_id` 在 Phase1/2 里实际不参与逻辑，可以保留为兼容参数
+- `skill.py` 的自定义 prompt 不应再通过修改全局变量实现，要直接传入 `run_phase2(..., prompt=custom_prompt)`
+- `main.py` 后续只保留交互编辑 prompt 的外壳
+
+验收：
+
+- `batch/phase_runner.py` 不再 import `main`
+- `skill.py` 不再 import `main` 或临时修改 `main.PHASE2_PROMPT`
+- `rg "from main|import main" sp_video` 不再命中生产路径
+
+### P3：抽出 Phase3 / Phase4 包装层
+
+目标：统一入口名称，先包装旧逻辑，不急着深拆 `make_time/` 和 `make_video/`。
+
+新建：
+
+| 文件 | 内容 |
+|------|------|
+| `phase3_match/runner.py` | 包装 `make_time.step2.get_keep_intervals`，返回过滤后的 valid intervals |
+| `phase4_cut/runner.py` | 包装 `make_video.step3.cut_video_filter_complex`，支持显式 `output_path` |
+
+建议函数签名：
+
+```python
+def get_keep_intervals(srt_path, script_text, output_path=None):
+    ...
+
+def keep_intervals_to_segments(keep_intervals):
+    ...
+
+def cut_video(mp4_path, output_path, keep_intervals=None, segments=None):
+    ...
+```
+
+注意：
+
+- 第一轮不要继续使用 `cut_video_main()` 作为新入口，因为它写死 `data/hanbing/{video_id}/output.mp4`
+- `batch_generator.py` 当前依赖 `cut_video_main(intervals, mp4_path, video_id, "batch")`，应改为由调用方决定输出目录
+- `make_time/`、`make_video/` 暂时保留，Phase3/4 只做稳定外壳
+
+验收：
+
+- `batch_generator.py` 不再直接 import `make_video.step3.cut_video_main`
+- 新的 `phase4_cut.runner.cut_video` 能被 5min / short / batch 三种模式共用
+
+### P4：迁入 sp_mini 单视频脚本
+
+目标：把 `sp_mini` 的两个批处理入口搬进 `sp_video/scripts/`，并改为依赖 phase/shared。
+
+新建：
+
+| 新文件 | 来源 | 改动 |
+|--------|------|------|
+| `scripts/run_5min.py` | `sp_mini/scripts/run_single_video_5min_batch.py` | 改 import，使用 `PROMPT_5MIN` / `PROMPT_5MIN_EXPAND` |
+| `scripts/run_short.py` | `sp_mini/scripts/run_single_video_short_batch.py` | 改 import，使用 `PROMPT_SHORT` |
+
+保留行为：
+
+- `run_5min.py` 保留 `ProgressTracker`
+- `run_5min.py` 保留 `<220s` 触发 retry 的逻辑
+- `run_short.py` 保持无 retry 的简单流程
+- 两者继续输出 `summary.json`、`events.jsonl`、`step1.txt`、`step2.txt`、`intervals.json`
+
+应消除的重复：
+
+- `TeeStream`
+- `ensure_dir`
+- `make_run_id`
+- `find_video_pairs`
+- `keep_intervals_to_segments`
+- `get_total_duration`
+- `get_srt_duration_sec`
+- `count_timeline_entries`
+- `classify_duration_status`
+
+验收：
+
+- `python scripts/run_5min.py --help` 正常
+- `python scripts/run_short.py --help` 正常
+- 两个脚本不再 import `sp_mini` 或 `main`
+
+### P5：切换 sp_video 现有入口
+
+目标：让原 sp_video 主路径都走新 phase/shared。
+
+修改：
+
+| 文件 | 改动 |
+|------|------|
+| `batch/phase_runner.py` | 改用 `phase1_select.runner`、`phase2_rewrite.runner`、`phase3_match.runner` |
+| `batch_generator.py` | 改用 `phase4_cut.runner.cut_video` |
+| `skill.py` | 改用 phase runner；自定义 prompt 通过参数传递 |
+| `main.py` | 变成薄 CLI，内部调用 phase runner，或暂时作为兼容入口保留 |
+
+验收：
+
+- `rg "from main|import main" sp_video` 不命中生产代码
+- `rg "cut_video_main" sp_video` 只允许在旧兼容层或测试说明里出现
+- 原 `batch_generator.py` 的单视频 / 多视频流程仍可运行
+- `skill.py start/phase2/generate` 的 JSON stdout 行为不变
+
+### P6：清理旧代码与文档收口
+
+目标：确认新路径稳定后再删除或降级旧入口。
+
+清理策略：
+
+1. `main.py` 如果外部仍有人手动使用，就保留为 CLI wrapper
+2. `batch/logger.py` 可改成从 `shared.logger` re-export，避免断旧 import
+3. `make_time/`、`make_video/` 第一轮不删除；等 Phase3/4 深拆时再处理
+4. `sp_mini/` 暂时保留一段时间作为对照，确认线上流程完全迁入后再归档或删除
+
+验收：
+
+- 文档更新 README / ARCHITECTURE 中的新入口
+- 所有新模块可 `compileall`
+- 手动跑通三种模式各一次
+
+---
+
+## 第一轮不做的事
+
+为了降低融合风险，第一轮明确不做这些：
+
+1. 不重写 `make_time` 的匹配算法
+2. 不重写 `make_video/filter_builder.py`
+3. 不调整评分算法和多视频组合策略
+4. 不改变 `settings.py` 的配置加载方式
+5. 不立刻删除 `sp_mini/`
+6. 不把所有脚本强行改成一个超级入口
+
+这些可以作为第二轮重构：
+
+- 深拆 `make_time/` 到 `phase3_match/srt_parser.py`、`script_parser.py`、`matcher.py`
+- 深拆 `make_video/` 到 `phase4_cut/filter_builder.py`、`runner.py`
+- 建立正式 `modes.py`
+- 为 phase runner 增加 mock LLM 测试
+
+---
+
+## 最小可交付版本（MVP）
+
+最小可交付不是“目录都完美”，而是以下条件同时成立：
+
+1. `sp_video` 内可以运行 `scripts/run_5min.py`
+2. `sp_video` 内可以运行 `scripts/run_short.py`
+3. 原 `batch_generator.py` 仍能运行
+4. `skill.py` 不再依赖 `main.py`
+5. `main.py` 即使保留，也只是 CLI wrapper，不再是业务函数仓库
+6. Phase1/2 prompt 全部集中在 `phase1_select/prompts.py` 和 `phase2_rewrite/prompts.py`
+7. 新增代码不改变 Phase3 匹配和 Phase4 裁剪算法
+
+---
+
+## 手动验收清单
+
+每完成一个大阶段后至少检查：
+
+```bash
+python -m compileall shared phase1_select phase2_rewrite phase3_match phase4_cut scripts
+python scripts/run_5min.py --help
+python scripts/run_short.py --help
+python batch_generator.py --help
+python skill.py list
+```
+
+有测试环境和素材时再跑：
+
+```bash
+python scripts/run_5min.py --input_dir data/video --force
+python scripts/run_short.py --input_dir data/video --force
+python batch_generator.py
+```
+
+验收输出重点：
+
+- `step1.txt` / `step2.txt` / `intervals.json` 正常生成
+- `summary.json` 字段和旧版本兼容
+- `events.jsonl` 能记录 phase 成功/失败
+- 5min 模式仍会输出 heartbeat 和 retry 相关日志
+- batch 模式仍会生成候选、评分并输出最终视频
