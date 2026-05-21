@@ -15,12 +15,16 @@ from phase2_rewrite.prompts import PROMPT_SHORT as PHASE2_PROMPT
 from phase2_rewrite.runner import run_phase2 as _run_phase2
 from phase3_match.runner import run_phase3
 from phase4_cut.runner import cut_video_filter_complex, srt_time_to_seconds
+from shared.file_lock import file_lock
 from shared.logger import BatchLogger
 from shared.output import error, info, warn
+from shared.task_queue import claim_next_task, init_tasks, update_task
 
 
 DEFAULT_OUTPUT_DIR = os.path.join("data", "output_short")
 DEFAULT_LOG_ROOT = os.path.join("data", "run_logs", "single_video_short")
+DEFAULT_TASK_FILE = os.path.join("data", "run_state", "run_short_tasks.json")
+DEFAULT_FFMPEG_LOCK_FILE = os.path.join("data", "run_state", "ffmpeg.lock")
 TARGET_MIN_SEC = 60
 TARGET_MAX_SEC = 150
 TARGET_SEC = 90
@@ -89,6 +93,13 @@ def get_total_duration(segments):
     return round(sum(end - start for start, end in segments), 3)
 
 
+def find_video_pair(video_pairs, target_video_id):
+    for video_id, srt_path, mp4_path in video_pairs:
+        if video_id == target_video_id:
+            return video_id, srt_path, mp4_path
+    return None
+
+
 def get_srt_duration_sec(srt_path):
     with open(srt_path, "r", encoding="utf-8") as f:
         lines = f.readlines()
@@ -127,7 +138,7 @@ def snapshot_prompts(run_dir):
     return prompt_path
 
 
-def process_single_video(video_id, srt_path, mp4_path, output_root, logger, force=False):
+def process_single_video(video_id, srt_path, mp4_path, output_root, logger, force=False, ffmpeg_lock_file=None):
     video_output_dir = os.path.join(output_root, video_id)
     os.makedirs(video_output_dir, exist_ok=True)
 
@@ -205,7 +216,12 @@ def process_single_video(video_id, srt_path, mp4_path, output_root, logger, forc
     info(f"{video_id}: 原始 {original_duration_sec} 秒 -> 保留 {total_duration} 秒，{len(segments)} 个片段，status={duration_status}")
 
     phase4_start = time.time()
-    cut_video_filter_complex(mp4_path, output_video_path, segments)
+    if ffmpeg_lock_file:
+        info(f"{video_id}: waiting for ffmpeg lock {ffmpeg_lock_file}")
+        with file_lock(ffmpeg_lock_file):
+            cut_video_filter_complex(mp4_path, output_video_path, segments)
+    else:
+        cut_video_filter_complex(mp4_path, output_video_path, segments)
     phase4_duration = time.time() - phase4_start
     logger.log_phase(video_id, "phase4", 1, phase4_duration, "success", output_path=output_video_path, selected_duration_sec=total_duration, version="short")
 
@@ -244,7 +260,24 @@ def parse_args():
     parser.add_argument("--output_dir", default=DEFAULT_OUTPUT_DIR, help="输出目录，不覆盖原视频")
     parser.add_argument("--force", action="store_true", help="如果输出已存在则覆盖重跑")
     parser.add_argument("--log_root", default=DEFAULT_LOG_ROOT, help="按次归档日志目录，每次运行会新建子目录")
+    parser.add_argument("--video_id", help="只处理指定 video_id")
+    parser.add_argument("--init_tasks", action="store_true", help="扫描 video_dir 初始化任务文件")
+    parser.add_argument("--auto", action="store_true", help="循环领取 pending 任务并处理，直到没有任务")
+    parser.add_argument("--task_file", default=DEFAULT_TASK_FILE, help="任务状态 JSON 文件路径")
+    parser.add_argument("--ffmpeg_lock_file", default=DEFAULT_FFMPEG_LOCK_FILE, help="ffmpeg 串行锁文件路径")
+    parser.add_argument("--worker_id", help="可选调试标记，写入任务状态文件")
     return parser.parse_args()
+
+
+def handle_task_result(task_file, result):
+    status = result.get("status")
+    video_id = result.get("video_id")
+    if status == "success":
+        update_task(task_file, video_id, "completed", stage="completed", output_video=result.get("output_video"))
+    elif status == "skipped":
+        update_task(task_file, video_id, "skipped", stage="skipped", output_video=result.get("output_video"))
+    else:
+        update_task(task_file, video_id, "failed", stage="failed", error=result.get("error") or status)
 
 
 def main():
@@ -272,6 +305,62 @@ def main():
         if not video_pairs:
             raise ValueError(f"目录下未找到可处理的视频对: {args.video_dir}")
 
+        if args.init_tasks:
+            created, tasks = init_tasks(args.task_file, video_pairs, force=args.force)
+            if created:
+                info(f"[TASK] 已初始化任务文件: {args.task_file}，共 {len(tasks)} 个任务")
+            else:
+                warn(f"[TASK] 任务文件已存在，未覆盖: {args.task_file}。如需重建请加 --force")
+            return
+
+        if args.video_id:
+            pair = find_video_pair(video_pairs, args.video_id)
+            if not pair:
+                raise ValueError(f"未找到指定视频: {args.video_id}")
+            video_pairs = [pair]
+
+        if args.auto:
+            if not os.path.exists(args.task_file):
+                raise ValueError(f"任务文件不存在，请先运行 --init_tasks: {args.task_file}")
+
+            results = []
+            run_start = time.time()
+            while True:
+                video_id, task = claim_next_task(args.task_file, args.worker_id)
+                if not video_id:
+                    info("[TASK] 没有 pending 任务，退出")
+                    break
+
+                try:
+                    info(f"[TASK] 领取任务: {video_id}")
+                    result = process_single_video(
+                        video_id,
+                        task["srt_path"],
+                        task["mp4_path"],
+                        args.output_dir,
+                        logger,
+                        force=args.force,
+                        ffmpeg_lock_file=args.ffmpeg_lock_file,
+                    )
+                except Exception as e:
+                    result = {"video_id": video_id, "status": "error", "error": str(e), "version": "short"}
+                    logger.log_event("video_error", video_id=video_id, error=str(e), version="short")
+                    error(f"{video_id}: {e}")
+                handle_task_result(args.task_file, result)
+                results.append(result)
+
+            summary_path = os.path.join(args.output_dir, "auto_summary_short.json")
+            with open(summary_path, "w", encoding="utf-8") as f:
+                json.dump(results, f, ensure_ascii=False, indent=2)
+            logger.log_event(
+                "auto_run_done",
+                task_file=args.task_file,
+                processed_count=len(results),
+                elapsed_sec=round(time.time() - run_start, 2),
+                version="short",
+            )
+            return
+
         info(f"[INIT] 共发现 {len(video_pairs)} 个视频")
         info(f"[LOG] run_id={run_id}")
         info(f"[LOG] text_log={text_log_path}")
@@ -282,7 +371,15 @@ def main():
         run_start = time.time()
         for video_id, srt_path, mp4_path in video_pairs:
             try:
-                result = process_single_video(video_id, srt_path, mp4_path, args.output_dir, logger, force=args.force)
+                result = process_single_video(
+                    video_id,
+                    srt_path,
+                    mp4_path,
+                    args.output_dir,
+                    logger,
+                    force=args.force,
+                    ffmpeg_lock_file=args.ffmpeg_lock_file,
+                )
             except Exception as e:
                 result = {"video_id": video_id, "status": "error", "error": str(e), "version": "short"}
                 logger.log_event("video_error", video_id=video_id, error=str(e), version="short")
