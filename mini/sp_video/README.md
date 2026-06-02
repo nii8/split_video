@@ -17,7 +17,6 @@ data/video/demo.srt
 
 | 场景 | 入口 | 说明 |
 | --- | --- | --- |
-| 单个视频完整跑 Phase1 到 Phase4 | `main.py` | 基础 CLI，适合调试四阶段主流程 |
 | 生成 60 到 150 秒短视频 | `scripts/run_short.py` | 短视频生产入口 |
 | 生成 4 到 6 分钟视频 | `scripts/run_5min.py` | 5 分钟版本生产入口，支持过短重试 |
 | 多视频目录批量生成候选并评分选优 | `batch_generator.py` | 批量生成、机器评分、视觉评分、转场评分、多视频组合 |
@@ -191,24 +190,7 @@ data/run_state/ffmpeg.lock
 
 Phase1、Phase2、Phase3 可以多进程并行。Phase4 使用 ffmpeg 时会通过锁文件串行执行，避免多个 ffmpeg 同时抢占机器资源。
 
-### 4.4 基础 CLI
-
-适用场景：手动调试四阶段主流程。
-
-```bash
-python main.py --input_video data/video/demo.mp4 --input_srt data/video/demo.srt --stage 4
-```
-
-参数：
-
-| 参数 | 说明 |
-| --- | --- |
-| `--input_video` | 输入视频路径 |
-| `--input_srt` | 输入字幕路径 |
-| `--output_dir` | 中间文件输出目录，默认使用视频所在目录 |
-| `--stage` | 执行到哪个阶段，取值为 `1`、`2`、`3`、`4` |
-
-### 4.5 批量生成入口
+### 4.4 批量生成入口
 
 适用场景：对多个视频批量生成候选，评分，选出更好的结果。
 
@@ -231,7 +213,7 @@ BATCH_SCORE_THRESHOLD = 7.0
 BATCH_SINGLE_VIDEO_TARGET_PER_SOURCE = 10
 ```
 
-### 4.6 外部系统入口
+### 4.5 外部系统入口
 
 适用场景：OpenClaw 或其他系统用子进程调用，标准输出是 JSON。
 
@@ -408,7 +390,6 @@ data/batch_results/multi_video/
 
 ```text
 sp_video/
-├── main.py
 ├── batch_generator.py
 ├── skill.py
 ├── settings.py
@@ -428,7 +409,6 @@ sp_video/
 
 | 文件 | 作用 |
 | --- | --- |
-| `main.py` | 基础 CLI，串联 Phase1 到 Phase4 |
 | `batch_generator.py` | 批量生成、评分、选优入口 |
 | `skill.py` | 外部系统 JSON 调用入口，包含 OSS 下载、状态缓存、上传逻辑 |
 | `settings.py` | 全局配置中心 |
@@ -514,8 +494,7 @@ sp_video/
 不调用真实 LLM 的静态检查：
 
 ```bash
-python -m compileall shared phase1_select phase2_rewrite phase3_match phase4_cut batch scripts main.py skill.py batch_generator.py
-python main.py --help
+python -m compileall shared phase1_select phase2_rewrite phase3_match phase4_cut batch scripts skill.py batch_generator.py
 python scripts/run_short.py --help
 python scripts/run_5min.py --help
 python skill.py --help

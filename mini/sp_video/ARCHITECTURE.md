@@ -594,7 +594,6 @@ data/batch_results/multi_video/
 sp_video/
 ├── batch_generator.py              # 当前主入口
 ├── settings.py                     # 全局配置
-├── main.py                         # 旧 CLI 主流程
 ├── skill.py                        # 智能体接口流程
 ├── batch/
 │   ├── logger.py                   # 批处理日志

@@ -65,11 +65,12 @@ CLI 工具：输入长视频 + SRT 字幕，通过 LLM 自动筛选和重组脚�
 ## 运行命令
 
 ```bash
-# 交互式主流程
-python main.py
-
 # 批量预生成（24小时运行）
 python batch_generator.py
+
+# 短视频 / 5 分钟生产入口
+python scripts/run_short.py --help
+python scripts/run_5min.py --help
 
 # OpenClaw 技能接口
 python skill.py list
@@ -87,7 +88,6 @@ pytest tests/ -v
 
 ```
 sp_video/
-├── main.py              # 入口，4 个阶段串联，交互式 CLI
 ├── skill.py             # OpenClaw 技能接口：list / start / phase2 / generate
 ├── settings.py          # 全局配置（API Key、阈值、路径），其他模块统一 import settings
 ├── make_time/           # Phase 1-3：字幕解析 + AI 匹配 → 时间片段
@@ -191,7 +191,6 @@ cut_video_main()
 
 ## 不要做的事
 
-- 不要把 `main.py` 的 Phase 提示词移到外部文件（当前直接写在文件顶部，方便编辑）
 - 不要在 `make_time/` 内部直接调用 ffmpeg（职责分离）
 - 不要在 `make_video/` 内部调用 LLM（职责分离）
 - `settings.py` 只做配置，不写业务逻辑
