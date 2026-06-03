@@ -1,8 +1,8 @@
 # sp_video
 
-`sp_video` 是智能视频剪辑模块。
+`sp_video` 是一个基于字幕和视频文件的智能剪辑模块。
 
-输入是一组同名的 `.mp4` 视频和 `.srt` 字幕，输出是剪辑后的视频文件，以及每个阶段的中间结果。
+输入是一组同名的 `.mp4` 和 `.srt` 文件，系统通过 LLM 从字幕里筛选内容、组织脚本、匹配回原始时间轴，再用 FFmpeg 裁切并拼接成新视频。
 
 示例输入：
 
@@ -11,24 +11,24 @@ data/video/demo.mp4
 data/video/demo.srt
 ```
 
-`demo` 就是这个视频的 `video_id`。
+这里的 `demo` 就是 `video_id`。
 
-## 1. 功能总览
+## 1. 核心功能
 
-| 场景 | 入口 | 说明 |
+当前 README 只说明 3 个核心生产模式：
+
+| 模式 | 入口 | 目标 |
 | --- | --- | --- |
-| 生成 60 到 150 秒短视频 | `scripts/run_short.py` | 短视频生产入口 |
-| 生成 4 到 6 分钟视频 | `scripts/run_5min.py` | 5 分钟版本生产入口，支持过短重试 |
-| 多视频目录批量生成候选并评分选优 | `batch_generator.py` | 批量生成、机器评分、视觉评分、转场评分、多视频组合 |
-| 外部系统通过 JSON 调用 | `skill.py` | OpenClaw / 自动化系统入口 |
-| 本地测试和报告 | `scripts/*.py`、`tests/*.py` | 测试、性能分析、报告生成 |
+| 短视频精华模式 | `scripts/run_short.py` | 每个视频生成 1 条 60 到 150 秒短视频 |
+| 5 分钟顺序压缩模式 | `scripts/run_5min.py` | 每个视频生成 1 条 4 到 6 分钟版本 |
+| 单视频批量候选模式 | `batch_generator.py` | 每个源视频生成多条候选，评分后输出多个结果 |
 
 ## 2. 环境准备
 
-进入模块目录：
+进入项目目录：
 
 ```bash
-cd sp_video
+cd /will/split_video/mini/sp_video
 ```
 
 安装 Python 依赖：
@@ -56,103 +56,375 @@ DEEPSEEK_API_KEY: sk-xxxxxxxxxxxxxxxx
 BAILIAN_API_KEY: sk-xxxxxxxxxxxxxxxx
 ```
 
-## 3. 数据流
+Linux 下如果没有 `python` 命令，可以把下面命令里的 `python` 换成 `python3`。
 
-主流程分为四个 Phase：
+## 3. 共同处理流程
+
+三个模式底层都围绕四个阶段运行：
 
 ```text
 mp4 + srt
   |
   v
 Phase1  字幕筛选
-  输出 step1.txt
   |
   v
-Phase2  脚本重组
-  输出 step2.txt
+Phase2  脚本组织
   |
   v
 Phase3  时间轴匹配
-  输出 intervals.json
   |
   v
-Phase4  视频裁切
-  输出 mp4
+Phase4  视频裁切与拼接
 ```
 
 各阶段职责：
 
-| 阶段 | 目录 | 输入 | 输出 | 作用 |
-| --- | --- | --- | --- | --- |
-| Phase1 | `phase1_select/` | `.srt` | `step1.txt` | 从字幕中选出候选内容 |
-| Phase2 | `phase2_rewrite/` | `step1.txt` | `step2.txt` | 把候选内容改写成剪辑脚本 |
-| Phase3 | `phase3_match/` | `.srt` + `step2.txt` | `intervals.json` | 把脚本句子匹配回原字幕时间 |
-| Phase4 | `phase4_cut/` | `.mp4` + `intervals.json` | 输出视频 | 用 ffmpeg 按时间段裁切并拼接 |
+| 阶段 | 目录 | 作用 |
+| --- | --- | --- |
+| Phase1 | `phase1_select/` | 读取 SRT，用 prompt 从原字幕里筛出候选内容 |
+| Phase2 | `phase2_rewrite/` | 基于候选内容组织最终剪辑脚本 |
+| Phase3 | `phase3_match/`、`make_time/` | 把脚本句子匹配回原 SRT 时间轴，生成 `intervals.json` |
+| Phase4 | `phase4_cut/`、`make_video/` | 用 FFmpeg 根据时间段裁切并拼接视频 |
 
-常见输出文件：
+常见中间文件：
 
 ```text
-step1.txt        Phase1 结果
-step2.txt        Phase2 结果
-intervals.json   Phase3 时间段
-output.mp4       Phase4 视频结果
-summary.json     本次运行摘要
-events.jsonl     阶段日志
+step1.txt        Phase1 输出
+step2.txt        Phase2 输出
+intervals.json   Phase3 输出
+summary.json     单个视频运行摘要
+events.jsonl     阶段事件日志
 ```
 
-## 4. 常用入口
+## 4. 模式一：短视频精华
 
-### 4.1 短视频模式
+入口：
 
-适用场景：把长视频剪成 60 到 150 秒左右的短视频。
+```text
+scripts/run_short.py
+```
+
+目标：把一个或多个长视频剪成 **60 到 150 秒** 左右的高密度短精华版。
+
+这个模式每个输入视频只生成 1 条结果。它使用短视频专用 prompt，重点保留冲击力、核心观点、悬念、冲突、关键案例和结果，主动删除寒暄、重复铺垫和无信息增量内容。
+
+### 4.1 输入结构
+
+`run_short.py` 扫描一个平铺目录，目录里放同名 `.mp4` 和 `.srt`：
+
+```text
+data/video/
+├── demo.mp4
+├── demo.srt
+├── other.mp4
+└── other.srt
+```
+
+### 4.2 常用命令
+
+处理目录下全部视频：
 
 ```bash
 python scripts/run_short.py --video_dir data/video --output_dir data/output_short
 ```
 
-只跑某一个视频：
+只处理一个视频：
 
 ```bash
 python scripts/run_short.py --video_dir data/video --output_dir data/output_short --video_id demo
 ```
 
-强制覆盖已有结果：
+输出已存在时强制重跑：
 
 ```bash
 python scripts/run_short.py --video_dir data/video --output_dir data/output_short --force
 ```
 
-### 4.2 5 分钟模式
+### 4.3 输出结构
 
-适用场景：把长视频压缩成 4 到 6 分钟左右的视频。
+```text
+data/output_short/demo/
+├── step1.txt
+├── step2.txt
+├── intervals.json
+├── demo_short.mp4
+└── summary.json
+```
+
+`summary.json` 主要记录：
+
+| 字段 | 含义 |
+| --- | --- |
+| `original_duration_sec` | 原始字幕总时长 |
+| `selected_duration_sec` | 最终保留时长 |
+| `segment_count` | 裁切片段数量 |
+| `compression_ratio` | 压缩比例 |
+| `duration_status` | `ok`、`too_short` 或 `too_long` |
+| `output_video` | 输出视频路径 |
+
+### 4.4 适合场景
+
+- 想稳定地从每个视频产出 1 条短视频。
+- 接受结果偏精简、偏高密度。
+- 目标是短视频平台的单条短精华内容。
+
+## 5. 模式二：5 分钟顺序压缩
+
+入口：
+
+```text
+scripts/run_5min.py
+```
+
+目标：把长视频压缩成 **4 到 6 分钟** 左右的单条完整版本。
+
+这个模式不追求强行打乱顺序做钩子，而是尽量保留原视频的论述顺序和叙事顺序。它适合把较长内容压缩成一条还能讲完整的版本。
+
+### 5.1 输入结构
+
+和短视频模式一样，输入目录是平铺结构：
+
+```text
+data/video/
+├── demo.mp4
+└── demo.srt
+```
+
+### 5.2 常用命令
+
+处理目录下全部视频：
 
 ```bash
 python scripts/run_5min.py --video_dir data/video --output_dir data/output_5min
 ```
 
-只跑某一个视频：
+只处理一个视频：
 
 ```bash
 python scripts/run_5min.py --video_dir data/video --output_dir data/output_5min --video_id demo
 ```
 
-说明：
+输出已存在时强制重跑：
 
-- `run_5min.py` 会检查输出时长。
-- 如果结果过短，会使用扩写 prompt 再尝试生成一次。
-- Phase4 使用 ffmpeg 生成视频。
+```bash
+python scripts/run_5min.py --video_dir data/video --output_dir data/output_5min --force
+```
 
-### 4.3 多进程自动领取任务
+### 5.3 过短重试机制
 
-适用场景：一个目录里有多个视频，希望开多个终端一起处理。
+`run_5min.py` 会检查 Phase3 匹配出的总保留时长。
 
-先初始化任务文件：
+关键配置在脚本中：
+
+```python
+TARGET_SEC = 300
+TARGET_MIN_SEC = 240
+TARGET_MAX_SEC = 360
+RETRY_TRIGGER_SEC = 220
+```
+
+逻辑：
+
+```text
+首轮 Phase1/2/3
+  |
+  v
+计算保留时长
+  |
+  v
+如果低于 220 秒，用扩写 prompt 重跑 Phase2/3
+  |
+  v
+比较首轮和重试结果
+  |
+  v
+选择更接近 5 分钟的一版进入 Phase4
+```
+
+### 5.4 输出结构
+
+```text
+data/output_5min/demo/
+├── step1.txt
+├── step2.txt
+├── intervals.json
+├── step2_retry1.txt
+├── intervals_retry1.json
+├── demo_5min.mp4
+└── summary.json
+```
+
+如果没有触发重试，`step2_retry1.txt` 和 `intervals_retry1.json` 不一定存在。
+
+`summary.json` 会额外记录：
+
+| 字段 | 含义 |
+| --- | --- |
+| `retry_triggered` | 是否触发过短重试 |
+| `retry_used` | 最终是否采用重试结果 |
+| `retry_decision` | 选择首轮或重试的原因 |
+| `selected_iteration` | 最终采用第几轮结果 |
+
+### 5.5 适合场景
+
+- 想从长内容里压出较完整的一条视频。
+- 不希望做成碎片化金句集合。
+- 希望结果保持原内容顺序和逻辑主线。
+
+## 6. 模式三：单视频批量候选
+
+入口：
+
+```text
+batch_generator.py
+```
+
+目标：每个源视频不只生成 1 条，而是生成多条候选，自动评分后输出多个较优结果。
+
+这个模式更适合“候选生成和筛选”。它会对同一个视频多次运行 Phase1 和 Phase2，得到大量不同脚本候选，再通过 Phase3 匹配时间轴和机器评分筛选，最后生成多个候选视频。
+
+### 6.1 输入结构
+
+`batch_generator.py` 默认读取 `settings.py` 中的：
+
+```python
+DATA_DIR = "./data/hanbing"
+```
+
+输入目录是按视频 ID 分文件夹：
+
+```text
+data/hanbing/
+└── demo/
+    ├── demo.mp4
+    └── demo.srt
+```
+
+### 6.2 运行命令
+
+```bash
+python batch_generator.py
+```
+
+`batch_generator.py` 不使用命令行参数，主要通过 `settings.py` 调整行为。
+
+### 6.3 单视频批量流程
+
+```text
+扫描 DATA_DIR 下所有视频目录
+  |
+  v
+每个视频运行 BATCH_PHASE1_COUNT 次 Phase1
+  |
+  v
+从 Phase1 结果中随机取素材，运行 BATCH_PHASE2_COUNT 次 Phase2
+  |
+  v
+每个 Phase2 脚本运行 Phase3，得到 intervals 候选
+  |
+  v
+用 evaluate_quality() 做基础评分
+  |
+  v
+可选补充视觉评分、转场评分
+  |
+  v
+按分数、阈值和时长桶选择候选
+  |
+  v
+生成多个候选视频
+```
+
+### 6.4 核心配置
+
+配置位置：
+
+```text
+settings.py
+```
+
+常用配置：
+
+| 配置 | 作用 |
+| --- | --- |
+| `DATA_DIR` | 输入视频目录 |
+| `BATCH_RESULTS_DIR` | 批量结果输出目录 |
+| `BATCH_LOG_FILE` | 批量事件日志 |
+| `BATCH_PHASE1_COUNT` | 每个视频运行 Phase1 的次数 |
+| `BATCH_PHASE2_COUNT` | 每个视频生成 Phase2 脚本候选的次数 |
+| `BATCH_SCORE_THRESHOLD` | 候选最低分数线 |
+| `BATCH_SINGLE_VIDEO_TARGET_PER_SOURCE` | 每个源视频最终生成多少条候选视频 |
+| `BATCH_DURATION_BUCKETS` | 时长桶分布，用来控制候选时长比例 |
+| `BATCH_VISUAL_ENABLE` | 是否启用视觉评分 |
+| `BATCH_TRANSITION_ENABLE` | 是否启用转场规则评分 |
+
+当前默认值示例：
+
+```python
+BATCH_PHASE1_COUNT = 20
+BATCH_PHASE2_COUNT = 100
+BATCH_SCORE_THRESHOLD = 7.0
+BATCH_SINGLE_VIDEO_TARGET_PER_SOURCE = 10
+BATCH_RESULTS_DIR = "./data/batch_results"
+BATCH_LOG_FILE = "./data/batch_log.jsonl"
+```
+
+### 6.5 输出结构
+
+```text
+data/batch_results/demo/
+├── phase1/
+│   ├── step1_001.txt
+│   └── ...
+├── phase2/
+│   ├── step2_001.txt
+│   └── ...
+├── phase3/
+│   ├── intervals_001.json
+│   └── ...
+├── phase4/
+│   ├── score_001.json
+│   └── ...
+├── phase5/
+│   ├── video_001.mp4
+│   └── ...
+└── summary.json
+```
+
+`summary.json` 会记录本视频生成了多少 Phase1、Phase2、Phase3 成功候选、最终生成了多少视频，以及高分候选的评分和时长。
+
+### 6.6 评分逻辑
+
+基础评分由 `batch/scoring/evaluator.py` 负责，主要看：
+
+| 维度 | 说明 |
+| --- | --- |
+| `duration_fit` | 候选时长是否合理 |
+| `completeness` | 总时长和片段数是否足够支撑完整表达 |
+| `transition` | 片段数量是否过多、跳切是否过碎 |
+| `audio` | 当前是规则默认分 |
+| `video` | 当前是基于片段数量的规则分 |
+
+最终候选会按 `score_total`、时长和时长桶分布进行选择。
+
+### 6.7 适合场景
+
+- 想从一个源视频中得到多条不同版本。
+- 希望自动评分后再生成高分候选。
+- 能接受更长运行时间，以换取更多候选和更高命中率。
+
+## 7. 多进程任务队列
+
+`scripts/run_short.py` 和 `scripts/run_5min.py` 支持 JSON 任务队列，适合多个终端一起处理同一个输入目录。
+
+初始化短视频任务：
 
 ```bash
 python scripts/run_short.py --init_tasks --video_dir data/video --output_dir data/output_short
 ```
 
-再在多个终端里运行：
+自动领取短视频任务：
 
 ```bash
 python scripts/run_short.py --auto --video_dir data/video --output_dir data/output_short
@@ -165,16 +437,6 @@ python scripts/run_5min.py --init_tasks --video_dir data/video --output_dir data
 python scripts/run_5min.py --auto --video_dir data/video --output_dir data/output_5min
 ```
 
-规则：
-
-- `--init_tasks` 根据 `video_dir` 生成任务文件。
-- 默认不覆盖已有任务文件。
-- 加 `--force` 才会重新初始化任务文件。
-- `--auto` 自动领取 `pending` 任务。
-- 某个视频失败后，会标记为 `failed`，然后继续领取后面的任务。
-- `--worker_id` 是可选调试标记，不影响任务分配。
-- `--video_id` 是单视频直跑模式，不写任务文件。
-
 默认任务文件：
 
 ```text
@@ -182,68 +444,27 @@ data/run_state/run_short_tasks.json
 data/run_state/run_5min_tasks.json
 ```
 
-默认 ffmpeg 锁文件：
+默认 FFmpeg 锁文件：
 
 ```text
 data/run_state/ffmpeg.lock
 ```
 
-Phase1、Phase2、Phase3 可以多进程并行。Phase4 使用 ffmpeg 时会通过锁文件串行执行，避免多个 ffmpeg 同时抢占机器资源。
+说明：
 
-### 4.4 批量生成入口
+- `--init_tasks` 根据 `video_dir` 生成任务文件。
+- 默认不覆盖已有任务文件，加 `--force` 才会重新初始化。
+- `--auto` 自动领取 `pending` 任务，处理完成后更新状态。
+- Phase1、Phase2、Phase3 可以并行。
+- Phase4 会通过锁文件串行执行，避免多个 FFmpeg 同时占用机器资源。
 
-适用场景：对多个视频批量生成候选，评分，选出更好的结果。
+## 8. 参数速查
 
-```bash
-python batch_generator.py
-```
-
-`batch_generator.py` 不使用命令行参数，主要读取 `settings.py`。
-
-核心配置：
-
-```python
-DATA_DIR = "./data/hanbing"
-BATCH_RESULTS_DIR = "./data/batch_results"
-BATCH_LOG_FILE = "./data/batch_log.jsonl"
-
-BATCH_PHASE1_COUNT = 20
-BATCH_PHASE2_COUNT = 100
-BATCH_SCORE_THRESHOLD = 7.0
-BATCH_SINGLE_VIDEO_TARGET_PER_SOURCE = 10
-```
-
-### 4.5 外部系统入口
-
-适用场景：OpenClaw 或其他系统用子进程调用，标准输出是 JSON。
-
-```bash
-python skill.py list
-python skill.py start --video_id VIDEO_ID
-python skill.py phase2 --video_id VIDEO_ID --force
-python skill.py generate --video_id VIDEO_ID
-```
-
-命令说明：
-
-| 命令 | 作用 |
-| --- | --- |
-| `list` | 查询 OSS 视频列表并更新缓存 |
-| `start` | 下载或准备视频，并执行 Phase1 |
-| `phase2` | 执行 Phase2 和 Phase3 |
-| `generate` | 执行 Phase4，生成并上传视频 |
-
-自定义 Phase2 prompt：
-
-```bash
-python skill.py phase2 --video_id VIDEO_ID --prompt_file prompt.txt --force
-```
-
-## 5. run_short.py / run_5min.py 参数
+`run_short.py` 和 `run_5min.py` 的主要参数相同：
 
 | 参数 | 作用 |
 | --- | --- |
-| `--video_dir` | 输入目录，目录里放同名 `.mp4` 和 `.srt` |
+| `--video_dir` | 输入目录，包含同名 `.mp4` 和 `.srt` |
 | `--output_dir` | 输出目录 |
 | `--force` | 输出已存在时重新生成 |
 | `--log_root` | 运行日志归档目录 |
@@ -251,7 +472,7 @@ python skill.py phase2 --video_id VIDEO_ID --prompt_file prompt.txt --force
 | `--init_tasks` | 初始化任务文件 |
 | `--auto` | 自动领取任务并循环处理 |
 | `--task_file` | 指定任务状态 JSON 文件 |
-| `--ffmpeg_lock_file` | 指定 ffmpeg 串行锁文件 |
+| `--ffmpeg_lock_file` | 指定 FFmpeg 串行锁文件 |
 | `--worker_id` | 可选调试标记 |
 
 查看完整参数：
@@ -261,313 +482,64 @@ python scripts/run_short.py --help
 python scripts/run_5min.py --help
 ```
 
-## 6. batch 批量系统
+## 9. 本地检查
 
-`batch/` 是批量生成、评分、选优、多视频组合相关代码。
-
-### 6.1 单视频批量流程
-
-`batch_generator.py` 在默认配置下走单视频批量流程：
-
-```text
-扫描 DATA_DIR
-  |
-  v
-每个视频多次运行 Phase1
-  |
-  v
-每个 Phase1 结果多次运行 Phase2
-  |
-  v
-每个 Phase2 结果运行 Phase3
-  |
-  v
-对 intervals 做机器评分
-  |
-  v
-可选：视觉评分、转场评分
-  |
-  v
-按分数、时长桶、阈值选出候选
-  |
-  v
-Phase5 生成候选视频
-  |
-  v
-写出 summary.json
-```
-
-对应输出目录：
-
-```text
-data/batch_results/{video_id}/
-├── phase1/
-├── phase2/
-├── phase3/
-├── phase4/
-├── phase5/
-├── visual/
-└── summary.json
-```
-
-### 6.2 多视频组合流程
-
-打开配置：
-
-```python
-BATCH_MULTI_VIDEO_ENABLE = True
-```
-
-当 `DATA_DIR` 中至少有 2 个视频时，会进入多视频组合流程：
-
-```text
-每个视频先跑 Phase1/2/3
-  |
-  v
-从 intervals 中提取候选片段
-  |
-  v
-构建每个视频的片段池
-  |
-  v
-组合主视频和副视频片段
-  |
-  v
-对组合结果评分
-  |
-  v
-按时长和分数选出候选
-  |
-  v
-生成多视频混剪结果
-```
-
-输出目录：
-
-```text
-data/batch_results/multi_video/
-├── summary.json
-└── generated_videos/
-```
-
-### 6.3 batch 配置项
-
-| 配置 | 作用 |
-| --- | --- |
-| `BATCH_PHASE1_COUNT` | 每个视频运行 Phase1 的次数 |
-| `BATCH_PHASE2_COUNT` | Phase2 总生成次数 |
-| `BATCH_SCORE_THRESHOLD` | 候选最低分数线 |
-| `BATCH_SINGLE_VIDEO_TARGET_PER_SOURCE` | 每个源视频最终保留多少个单视频候选 |
-| `BATCH_DURATION_BUCKETS` | 时长桶分布，用来控制短、中、长候选比例 |
-| `BATCH_VISUAL_ENABLE` | 是否启用视觉评分流程 |
-| `BATCH_VISUAL_USE_LLM` | 视觉评分是否调用多模态 LLM |
-| `BATCH_VISUAL_TOPN` | 对前几个候选补视觉评分 |
-| `BATCH_TRANSITION_ENABLE` | 是否启用转场规则评分 |
-| `BATCH_MULTI_VIDEO_ENABLE` | 是否启用多视频组合 |
-| `BATCH_MIN_MULTI_VIDEO_DURATION_SEC` | 多视频候选最小时长 |
-| `BATCH_MULTI_VIDEO_TARGET_COUNT` | 多视频最终目标候选数 |
-| `BATCH_MULTI_VIDEO_CANDIDATE_COUNT` | 多视频组合候选生成上限 |
-| `BATCH_TEST_MODE` | 测试模式，降低 Phase1/Phase2 次数 |
-
-### 6.4 batch 文件职责
-
-| 文件 | 作用 |
-| --- | --- |
-| `batch/runner/phase_runner.py` | 批量运行 Phase1、Phase2、Phase3 |
-| `batch/scoring/evaluator.py` | 基础机器评分，关注时长、完整度等 |
-| `batch/scoring/transition_scorer.py` | 转场规则评分，判断片段是否太碎、跳跃是否明显 |
-| `batch/scoring/visual_scorer.py` | 视觉评分入口，可结合抽帧和多模态 LLM |
-| `batch/scoring/frame_sampler.py` | 从视频中抽帧 |
-| `batch/scoring/image_grid.py` | 把抽出的帧拼成九宫格 |
-| `batch/multi_video/selector.py` | 构建多视频输入结构 |
-| `batch/multi_video/pool_builder.py` | 把单视频 intervals 转成候选片段池 |
-| `batch/multi_video/combiner.py` | 组合多视频候选 |
-| `batch/multi_video/scorer.py` | 给多视频组合结果评分 |
-| `batch/debug/visual_debug.py` | 生成视觉评分调试报告 |
-| `batch/debug/visual_debug_standalone.py` | 独立运行视觉调试 |
-
-## 7. 代码结构
-
-```text
-sp_video/
-├── batch_generator.py
-├── skill.py
-├── settings.py
-├── phase1_select/
-├── phase2_rewrite/
-├── phase3_match/
-├── phase4_cut/
-├── batch/
-├── shared/
-├── scripts/
-├── make_time/
-├── make_video/
-└── tests/
-```
-
-### 7.1 顶层文件
-
-| 文件 | 作用 |
-| --- | --- |
-| `batch_generator.py` | 批量生成、评分、选优入口 |
-| `skill.py` | 外部系统 JSON 调用入口，包含 OSS 下载、状态缓存、上传逻辑 |
-| `settings.py` | 全局配置中心 |
-| `ARCHITECTURE.md` | 架构说明 |
-| `CLAUDE.md` | 协作和上下文说明 |
-| `skill_README.md` | `skill.py` 相关说明 |
-| `TEST.md` | 测试说明 |
-
-### 7.2 Phase 文件
-
-| 文件 | 作用 |
-| --- | --- |
-| `phase1_select/prompts.py` | Phase1 prompt |
-| `phase1_select/runner.py` | Phase1 单次和批量调用 |
-| `phase2_rewrite/prompts.py` | Phase2 prompt，包括 video、5min、short 等模式 |
-| `phase2_rewrite/runner.py` | Phase2 单次和批量调用 |
-| `phase3_match/runner.py` | Phase3 时间轴匹配封装 |
-| `phase4_cut/runner.py` | Phase4 视频裁切封装 |
-
-### 7.3 shared 公共工具
-
-| 文件 | 作用 |
-| --- | --- |
-| `shared/llm_caller.py` | LLM 批量调用和流式调用 |
-| `shared/logger.py` | `BatchLogger`，写入阶段日志和事件日志 |
-| `shared/output.py` | `info`、`warn`、`error`、`debug` 输出函数 |
-| `shared/utils.py` | 通用小工具 |
-| `shared/file_lock.py` | 跨进程文件锁，用于 ffmpeg 串行 |
-| `shared/task_queue.py` | JSON 任务队列，支持初始化、领取、更新任务 |
-
-### 7.4 scripts 脚本
-
-| 文件 | 作用 |
-| --- | --- |
-| `scripts/run_short.py` | 短视频生产入口 |
-| `scripts/run_5min.py` | 5 分钟视频生产入口 |
-| `scripts/run_batch_experiments.py` | 批量实验脚本 |
-| `scripts/run_comprehensive_test.py` | 综合测试脚本 |
-| `scripts/run_all_tests.py` | 测试集合入口 |
-| `scripts/analyze_performance.py` | 性能分析 |
-| `scripts/generate_test_report.py` | 生成测试报告 |
-| `scripts/verify_multi_video_builder_example.py` | 多视频生成示例验证 |
-
-### 7.5 make_time 旧时间轴模块
-
-这些文件是 Phase3 底层实现的一部分，当前第一轮重构中保留。
-
-| 文件 | 作用 |
-| --- | --- |
-| `make_time/ai_caller.py` | 旧 AI 调用辅助 |
-| `make_time/chat.py` | 旧对话调用逻辑 |
-| `make_time/interval.py` | 时间段结构和处理 |
-| `make_time/mode2.py` | 旧模式 2 解析和匹配逻辑 |
-| `make_time/prompts.py` | 旧时间轴相关 prompt |
-| `make_time/step2.py` | 时间轴匹配主逻辑 |
-| `make_time/time_utils.py` | 时间格式转换工具 |
-
-### 7.6 make_video 旧视频生成模块
-
-这些文件是 Phase4 底层实现的一部分，当前第一轮重构中保留。
-
-| 文件 | 作用 |
-| --- | --- |
-| `make_video/filter_builder.py` | ffmpeg filter_complex 构建 |
-| `make_video/multi_video_builder.py` | 多视频混剪生成 |
-| `make_video/step3.py` | 旧视频裁切主逻辑 |
-
-### 7.7 tests 测试文件
-
-| 文件 | 作用 |
-| --- | --- |
-| `tests/test_batch_generator.py` | 批量入口相关测试 |
-| `tests/test_evaluator.py` | 评分逻辑测试 |
-| `tests/test_filter_complex.py` | ffmpeg filter 构建测试 |
-| `tests/test_interval.py` | 时间段处理测试 |
-| `tests/test_mode2_parse.py` | 旧 mode2 解析测试 |
-| `tests/test_multi_video_builder.py` | 多视频生成测试 |
-| `tests/test_step3.py` | 旧视频裁切逻辑测试 |
-| `tests/test_time_utils.py` | 时间工具测试 |
-
-## 8. 本地检查
-
-不调用真实 LLM 的静态检查：
+不调用真实 LLM 的基础检查：
 
 ```bash
-python -m compileall shared phase1_select phase2_rewrite phase3_match phase4_cut batch scripts skill.py batch_generator.py
+python -m compileall shared phase1_select phase2_rewrite phase3_match phase4_cut batch scripts batch_generator.py
 python scripts/run_short.py --help
 python scripts/run_5min.py --help
-python skill.py --help
 ```
 
-如果环境里安装了 `pytest`：
+如果环境安装了 `pytest`：
 
 ```bash
 python -m pytest tests/test_evaluator.py tests/test_filter_complex.py tests/test_time_utils.py tests/test_interval.py tests/test_mode2_parse.py
 ```
 
-## 9. 常见问题
+## 10. 常见问题
 
-### 9.1 找不到输出视频
+### 10.1 找不到输出视频
 
-先看输出目录是否有：
+先看对应输出目录是否有：
 
 ```text
 step1.txt
 step2.txt
 intervals.json
 summary.json
-events.jsonl
 ```
 
 缺少哪个文件，通常就是对应阶段失败。
 
-### 9.2 `--auto` 没有任务
+### 10.2 `--auto` 没有任务
 
-先初始化任务：
+先初始化任务文件：
 
 ```bash
 python scripts/run_short.py --init_tasks --video_dir data/video --output_dir data/output_short
 ```
 
-再启动自动领取：
+再运行自动领取：
 
 ```bash
 python scripts/run_short.py --auto --video_dir data/video --output_dir data/output_short
 ```
 
-### 9.3 重新初始化任务文件
+### 10.3 重新初始化任务文件
 
-默认不覆盖已有任务文件。需要加 `--force`：
+默认不覆盖已有任务文件，需要加 `--force`：
 
 ```bash
 python scripts/run_short.py --init_tasks --force --video_dir data/video --output_dir data/output_short
 ```
 
-### 9.4 batch 没有生成多视频结果
+### 10.4 批量模式没有生成视频
 
-检查：
+优先检查：
 
-```python
-BATCH_MULTI_VIDEO_ENABLE = True
-```
-
-同时确认 `DATA_DIR` 下至少有两个有效视频，每个视频目录里都有同名 `.mp4` 和 `.srt`。
-
-### 9.5 import 路径变更
-
-新的 batch 路径：
-
-```python
-from batch.scoring.evaluator import evaluate_quality
-from batch.runner.phase_runner import run_phase1_loop
-from batch.multi_video.combiner import build_multi_video_candidates
-```
-
-不要再使用旧路径：
-
-```python
-from batch.evaluator import evaluate_quality
-from batch.phase_runner import run_phase1_loop
-from batch.video_combiner import build_multi_video_candidates
-```
+- `settings.DATA_DIR` 是否指向正确目录。
+- 每个视频目录里是否有同名 `.mp4` 和 `.srt`。
+- Phase3 是否生成了有效 `intervals_*.json`。
+- 候选分数是否低于 `BATCH_SCORE_THRESHOLD`。
